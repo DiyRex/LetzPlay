@@ -8,7 +8,7 @@ interface NowPlayingProps {
 }
 
 export function NowPlaying({ snapshot }: NowPlayingProps) {
-  const song = snapshot.nowPlaying
+  const song = snapshot.tracks[snapshot.currentIndex] ?? null
   const progress =
     snapshot.durationSeconds > 0
       ? Math.min(100, (snapshot.positionSeconds / snapshot.durationSeconds) * 100)

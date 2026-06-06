@@ -14,67 +14,88 @@ class MusicQueueTest {
     private fun song(id: String = "id${seq++}", by: String = "alice") =
         Song(id = id, videoId = "vid$id", title = "Song $id", addedBy = by, addedAtEpochMs = 0)
 
-    @Test
-    fun `first added song becomes now playing`() {
-        val queue = MusicQueue()
-        val first = song()
-        queue.add(first)
-        assertEquals(first, queue.snapshot.value.nowPlaying)
-        assertTrue(queue.snapshot.value.queue.isEmpty())
-        assertEquals(PlaybackStatus.BUFFERING, queue.snapshot.value.status)
-    }
+    private fun ids(queue: MusicQueue) = queue.snapshot.value.tracks.map { it.id }
 
     @Test
-    fun `subsequent songs queue behind now playing`() {
+    fun `first added song starts playing`() {
         val queue = MusicQueue()
         queue.add(song(id = "a"))
-        queue.add(song(id = "b"))
-        assertEquals("a", queue.snapshot.value.nowPlaying?.id)
-        assertEquals(listOf("b"), queue.snapshot.value.queue.map { it.id })
+        val snap = queue.snapshot.value
+        assertEquals(0, snap.currentIndex)
+        assertEquals("a", snap.current?.id)
+        assertEquals(PlaybackStatus.BUFFERING, snap.status)
     }
 
     @Test
-    fun `advance promotes the next song`() {
+    fun `songs are not consumed - full list persists through advance`() {
         val queue = MusicQueue()
         queue.add(song(id = "a"))
         queue.add(song(id = "b"))
         queue.advance()
-        assertEquals("b", queue.snapshot.value.nowPlaying?.id)
-        assertTrue(queue.snapshot.value.queue.isEmpty())
+        assertEquals(listOf("a", "b"), ids(queue)) // both still present
+        assertEquals("b", queue.snapshot.value.current?.id)
     }
 
     @Test
-    fun `advance past the end goes idle`() {
+    fun `advance past end goes idle but keeps the list`() {
         val queue = MusicQueue()
         queue.add(song(id = "a"))
         queue.advance()
-        assertNull(queue.snapshot.value.nowPlaying)
         assertEquals(PlaybackStatus.IDLE, queue.snapshot.value.status)
+        assertEquals(listOf("a"), ids(queue))
+        assertEquals(0, queue.snapshot.value.currentIndex)
     }
 
     @Test
-    fun `remove and reorder only affect the pending queue`() {
+    fun `previous and playNow move the cursor without changing the list`() {
         val queue = MusicQueue()
-        queue.add(song(id = "now"))
         queue.add(song(id = "a"))
         queue.add(song(id = "b"))
         queue.add(song(id = "c"))
-
-        assertTrue(queue.remove("b"))
-        assertEquals(listOf("a", "c"), queue.snapshot.value.queue.map { it.id })
-
-        queue.reorder("c", 0)
-        assertEquals(listOf("c", "a"), queue.snapshot.value.queue.map { it.id })
-
-        assertFalse(queue.remove("now")) // now-playing is not in the pending queue
+        queue.advance() // b
+        queue.advance() // c
+        assertTrue(queue.previous())
+        assertEquals("b", queue.snapshot.value.current?.id)
+        assertTrue(queue.playNow("a"))
+        assertEquals("a", queue.snapshot.value.current?.id)
+        assertFalse(queue.playNow("missing"))
+        assertEquals(listOf("a", "b", "c"), ids(queue))
     }
 
     @Test
-    fun `ownerOf resolves who queued a pending song`() {
+    fun `remove adjusts the cursor`() {
         val queue = MusicQueue()
-        queue.add(song(id = "now", by = "alice"))
-        queue.add(song(id = "a", by = "bob"))
-        assertEquals("bob", queue.ownerOf("a"))
-        assertNull(queue.ownerOf("now"))
+        queue.add(song(id = "a"))
+        queue.add(song(id = "b"))
+        queue.add(song(id = "c"))
+        queue.advance() // cursor on b
+
+        assertTrue(queue.remove("a")) // before cursor -> shifts left
+        assertEquals(listOf("b", "c"), ids(queue))
+        assertEquals("b", queue.snapshot.value.current?.id)
+
+        assertTrue(queue.remove("b")) // remove current -> lands on c
+        assertEquals("c", queue.snapshot.value.current?.id)
+    }
+
+    @Test
+    fun `reorder keeps the cursor on the same song`() {
+        val queue = MusicQueue()
+        queue.add(song(id = "a"))
+        queue.add(song(id = "b"))
+        queue.add(song(id = "c"))
+        queue.advance() // cursor on b
+        queue.reorder("c", 0)
+        assertEquals(listOf("c", "a", "b"), ids(queue))
+        assertEquals("b", queue.snapshot.value.current?.id)
+    }
+
+    @Test
+    fun `ownerOf resolves who added a song`() {
+        val queue = MusicQueue()
+        queue.add(song(id = "a", by = "alice"))
+        queue.add(song(id = "b", by = "bob"))
+        assertEquals("bob", queue.ownerOf("b"))
+        assertNull(queue.ownerOf("missing"))
     }
 }

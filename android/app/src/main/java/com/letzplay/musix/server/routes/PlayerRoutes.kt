@@ -36,6 +36,11 @@ fun Route.playerRoutes(
         call.respond(HttpStatusCode.OK)
     }
 
+    post("/previous") {
+        queue.previous()
+        call.respond(HttpStatusCode.OK)
+    }
+
     post("/volume") {
         val request = call.receive<VolumeRequest>()
         player.setVolume(request.volume)

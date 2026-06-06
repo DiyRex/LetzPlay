@@ -22,7 +22,7 @@ class PlaybackCoordinator(
 ) {
     init {
         queue.snapshot
-            .map { it.nowPlaying?.videoId }
+            .map { it.current?.videoId }
             .distinctUntilChanged()
             .onEach { videoId -> if (videoId != null) controller.load(videoId) }
             .launchIn(scope)

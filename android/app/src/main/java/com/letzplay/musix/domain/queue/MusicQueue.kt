@@ -8,86 +8,132 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * The single owner of jukebox state: now-playing, the pending queue, and playback metadata.
+ * The single owner of jukebox state, modelled as a persistent playlist with a moving cursor
+ * ([JukeboxSnapshot.currentIndex]) rather than a consumed queue.
  *
- * Design notes:
- * - This class is *mechanical*. It never touches the player, the network, or Android APIs.
- *   That keeps it pure, unit-testable, and free of the lifecycle bugs that plague god-objects.
- * - Authorization (who may remove/skip) lives in the server route layer, not here.
- * - All mutations funnel through [mutate] under a single lock, then publish one immutable
- *   [JukeboxSnapshot]. Consumers (player coordinator, websocket broadcaster) observe [snapshot].
+ * A finished song stays in [JukeboxSnapshot.tracks]; the cursor simply advances. Play/previous/
+ * jump are cursor moves; songs leave only via [remove]. This is what keeps the full list visible
+ * on every remote.
+ *
+ * The class is mechanical and pure (no player, network, or Android APIs). All mutations funnel
+ * through [mutate] under one lock, then publish an immutable snapshot consumers observe.
  */
 class MusicQueue {
 
     private val lock = Any()
     private val _snapshot = MutableStateFlow(JukeboxSnapshot())
-
-    /** Observable, always-consistent view of the whole jukebox. */
     val snapshot: StateFlow<JukeboxSnapshot> = _snapshot.asStateFlow()
 
-    /**
-     * Queue a song. If nothing is playing it is promoted straight to now-playing so the
-     * coordinator will start it immediately; otherwise it joins the back of the queue.
-     */
+    /** Append a song. If nothing is playing (idle), it becomes the cursor and starts. */
     fun add(song: Song): Unit = mutate { current ->
-        if (current.nowPlaying == null) {
-            current.copy(nowPlaying = song, status = PlaybackStatus.BUFFERING)
+        val tracks = current.tracks + song
+        if (current.status == PlaybackStatus.IDLE || current.currentIndex < 0) {
+            current.copy(
+                tracks = tracks,
+                currentIndex = tracks.lastIndex,
+                status = PlaybackStatus.BUFFERING,
+                positionSeconds = 0f,
+                durationSeconds = 0f,
+            )
         } else {
-            current.copy(queue = current.queue + song)
+            current.copy(tracks = tracks)
         }
     }
 
-    /** Remove a pending song by its queue id. Returns false if it was not found. */
+    /** Remove a song (the only way one leaves the list). Returns false if not found. */
     fun remove(songId: String): Boolean {
         var removed = false
         mutate { current ->
-            val filtered = current.queue.filterNot { it.id == songId }
-            removed = filtered.size != current.queue.size
-            if (removed) current.copy(queue = filtered) else current
+            val idx = current.tracks.indexOfFirst { it.id == songId }
+            if (idx < 0) return@mutate current
+            removed = true
+            val tracks = current.tracks.filterIndexed { i, _ -> i != idx }
+            var index = current.currentIndex
+            var status = current.status
+            when {
+                idx < current.currentIndex -> index--
+                idx == current.currentIndex -> {
+                    if (index >= tracks.size) index = tracks.lastIndex
+                    status = if (index < 0) PlaybackStatus.IDLE else PlaybackStatus.BUFFERING
+                }
+            }
+            current.copy(tracks = tracks, currentIndex = index, status = status, positionSeconds = 0f)
         }
         return removed
     }
 
-    /** Move a pending song to [targetIndex] (clamped to bounds). No-op if not found. */
+    /** Move a song to [targetIndex], keeping the cursor on the same playing track. */
     fun reorder(songId: String, targetIndex: Int): Boolean {
         var moved = false
         mutate { current ->
-            val from = current.queue.indexOfFirst { it.id == songId }
+            val from = current.tracks.indexOfFirst { it.id == songId }
             if (from < 0) return@mutate current
-            val mutableQueue = current.queue.toMutableList()
-            val item = mutableQueue.removeAt(from)
-            val clamped = targetIndex.coerceIn(0, mutableQueue.size)
-            mutableQueue.add(clamped, item)
+            val currentId = current.current?.id
+            val mutable = current.tracks.toMutableList()
+            val item = mutable.removeAt(from)
+            mutable.add(targetIndex.coerceIn(0, mutable.size), item)
             moved = true
-            current.copy(queue = mutableQueue)
+            current.copy(
+                tracks = mutable,
+                currentIndex = currentId?.let { id -> mutable.indexOfFirst { it.id == id } } ?: current.currentIndex,
+            )
         }
         return moved
     }
 
-    /** Find who queued a song (for "remove your own" permission checks in the route layer). */
-    fun ownerOf(songId: String): String? = snapshot.value.queue.firstOrNull { it.id == songId }?.addedBy
+    /** Who added a song, or null if it isn't in the list (for permission checks in routes). */
+    fun ownerOf(songId: String): String? = snapshot.value.tracks.firstOrNull { it.id == songId }?.addedBy
 
-    /** Advance to the next track. Used both on natural song-end and explicit skip. */
+    /** Advance the cursor; go idle at the end without removing anything. */
     fun advance(): Unit = mutate { current ->
-        val next = current.queue.firstOrNull()
-        if (next == null) {
-            current.copy(nowPlaying = null, status = PlaybackStatus.IDLE, positionSeconds = 0f, durationSeconds = 0f)
-        } else {
+        if (current.currentIndex + 1 < current.tracks.size) {
             current.copy(
-                nowPlaying = next,
-                queue = current.queue.drop(1),
+                currentIndex = current.currentIndex + 1,
+                status = PlaybackStatus.BUFFERING,
+                positionSeconds = 0f,
+                durationSeconds = 0f,
+            )
+        } else {
+            current.copy(status = PlaybackStatus.IDLE, positionSeconds = 0f, durationSeconds = 0f)
+        }
+    }
+
+    /** Move the cursor back one track. Returns false when already at the start. */
+    fun previous(): Boolean {
+        var moved = false
+        mutate { current ->
+            if (current.currentIndex <= 0) return@mutate current
+            moved = true
+            current.copy(
+                currentIndex = current.currentIndex - 1,
                 status = PlaybackStatus.BUFFERING,
                 positionSeconds = 0f,
                 durationSeconds = 0f,
             )
         }
+        return moved
     }
 
-    fun clear(): Unit = mutate { current ->
-        current.copy(nowPlaying = null, queue = emptyList(), status = PlaybackStatus.IDLE, positionSeconds = 0f)
+    /** Jump the cursor straight to a song (tap-to-play). Returns false if not found. */
+    fun playNow(songId: String): Boolean {
+        var moved = false
+        mutate { current ->
+            val idx = current.tracks.indexOfFirst { it.id == songId }
+            if (idx < 0) return@mutate current
+            moved = true
+            current.copy(
+                currentIndex = idx,
+                status = PlaybackStatus.BUFFERING,
+                positionSeconds = 0f,
+                durationSeconds = 0f,
+            )
+        }
+        return moved
     }
 
-    // --- Playback metadata, pushed in from the player coordinator ---
+    fun clear(): Unit = mutate { JukeboxSnapshot(volume = it.volume) }
+
+    // --- playback metadata, pushed in from the player coordinator ---
 
     fun onStatusChanged(status: PlaybackStatus): Unit = mutate { it.copy(status = status) }
 

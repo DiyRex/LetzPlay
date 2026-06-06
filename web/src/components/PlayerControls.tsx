@@ -1,4 +1,4 @@
-import { Pause, Play, SkipForward, Volume2 } from "lucide-react"
+import { Pause, Play, SkipBack, SkipForward, Volume2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -26,15 +26,18 @@ export function PlayerControls({ snapshot }: PlayerControlsProps) {
     <Card>
       <CardContent className="flex flex-col gap-4 p-4">
         <div className="flex items-center justify-center gap-3">
+          <Button variant="secondary" size="icon" onClick={guard(api.previous)} aria-label="Previous">
+            <SkipBack className="size-5" />
+          </Button>
           <Button
-            variant="secondary"
             size="icon"
+            className="h-12 w-12"
             onClick={guard(() => (isPlaying ? api.pause() : api.play()))}
             aria-label={isPlaying ? "Pause" : "Play"}
           >
-            {isPlaying ? <Pause className="size-5" /> : <Play className="size-5" />}
+            {isPlaying ? <Pause className="size-6" /> : <Play className="size-6" />}
           </Button>
-          <Button variant="secondary" size="icon" onClick={guard(api.skip)} aria-label="Skip">
+          <Button variant="secondary" size="icon" onClick={guard(api.skip)} aria-label="Next">
             <SkipForward className="size-5" />
           </Button>
         </div>

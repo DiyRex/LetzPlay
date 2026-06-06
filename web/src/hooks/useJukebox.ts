@@ -3,8 +3,8 @@ import { api } from "@/api/client"
 import type { ConnectedUser, JukeboxSnapshot, LiveState } from "@/api/types"
 
 const EMPTY_SNAPSHOT: JukeboxSnapshot = {
-  nowPlaying: null,
-  queue: [],
+  tracks: [],
+  currentIndex: -1,
   status: "IDLE",
   positionSeconds: 0,
   durationSeconds: 0,

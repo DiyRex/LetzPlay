@@ -14,9 +14,13 @@ export interface Song {
   addedAtEpochMs: number
 }
 
+/**
+ * Persistent playlist with a moving cursor (not a consumed queue): `tracks` holds every added song
+ * — played, current, and upcoming — and `currentIndex` points at the one playing (-1 when none).
+ */
 export interface JukeboxSnapshot {
-  nowPlaying: Song | null
-  queue: Song[]
+  tracks: Song[]
+  currentIndex: number
   status: PlaybackStatus
   positionSeconds: number
   durationSeconds: number

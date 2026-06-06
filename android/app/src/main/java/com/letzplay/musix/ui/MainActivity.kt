@@ -70,17 +70,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun render(snapshot: JukeboxSnapshot) {
-        val playing = snapshot.nowPlaying
-        // When nothing is queued, surface the "scan to connect" panel; otherwise show now-playing.
+        val playing = snapshot.current
+        // When nothing is playing, surface the "scan to connect" panel; otherwise show now-playing.
         binding.connectPanel.visibility = if (playing == null) android.view.View.VISIBLE else android.view.View.GONE
         binding.nowPlayingBar.visibility = if (playing == null) android.view.View.GONE else android.view.View.VISIBLE
 
         if (playing != null) {
+            val upNext = (snapshot.tracks.size - snapshot.currentIndex - 1).coerceAtLeast(0)
             binding.nowPlayingTitle.text = playing.title
             binding.nowPlayingMeta.text = resources.getQuantityString(
                 com.letzplay.musix.R.plurals.songs_in_queue,
-                snapshot.queue.size,
-                snapshot.queue.size,
+                upNext,
+                upNext,
             )
             binding.progressBar.max = snapshot.durationSeconds.roundToInt().coerceAtLeast(1)
             binding.progressBar.progress = snapshot.positionSeconds.roundToInt()

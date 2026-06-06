@@ -58,9 +58,13 @@ export const api = {
       body: JSON.stringify({ songId, targetIndex }),
     }),
 
+  // Tap-to-play: jump the cursor straight to a song already in the list.
+  playNow: (id: string) => request<void>(`/api/queue/${id}/play`, { method: "POST" }),
+
   play: () => request<void>("/api/player/play", { method: "POST" }),
   pause: () => request<void>("/api/player/pause", { method: "POST" }),
   skip: () => request<void>("/api/player/skip", { method: "POST" }),
+  previous: () => request<void>("/api/player/previous", { method: "POST" }),
   setVolume: (volume: number) =>
     request<void>("/api/player/volume", { method: "POST", body: JSON.stringify({ volume }) }),
 }

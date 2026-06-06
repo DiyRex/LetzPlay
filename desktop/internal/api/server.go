@@ -64,12 +64,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/queue", s.protected(s.handleAddSong))
 	mux.HandleFunc("DELETE /api/queue/{id}", s.protected(s.handleRemoveSong))
 	mux.HandleFunc("POST /api/queue/reorder", s.protected(s.handleReorder))
+	mux.HandleFunc("POST /api/queue/{id}/play", s.protected(s.handlePlayNow))
 
 	// Transport + volume are available to any logged-in user (shared "party remote" model).
 	// Role still gates managing *other people's* songs (remove/reorder).
 	mux.HandleFunc("POST /api/player/play", s.protected(s.handlePlay))
 	mux.HandleFunc("POST /api/player/pause", s.protected(s.handlePause))
 	mux.HandleFunc("POST /api/player/skip", s.protected(s.handleSkip))
+	mux.HandleFunc("POST /api/player/previous", s.protected(s.handlePrevious))
 	mux.HandleFunc("POST /api/player/volume", s.protected(s.handleVolume))
 
 	mux.HandleFunc("GET /ws", s.protected(s.handleWS))
@@ -222,7 +224,7 @@ func (s *Server) handleReorder(w http.ResponseWriter, r *http.Request, session a
 	w.WriteHeader(http.StatusOK)
 }
 
-// --- player handlers (admin only) ---
+// --- player handlers (any logged-in user) ---
 
 func (s *Server) handlePlay(w http.ResponseWriter, _ *http.Request, _ auth.Session) {
 	s.player.Play()
@@ -236,6 +238,20 @@ func (s *Server) handlePause(w http.ResponseWriter, _ *http.Request, _ auth.Sess
 
 func (s *Server) handleSkip(w http.ResponseWriter, _ *http.Request, _ auth.Session) {
 	s.queue.Advance()
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handlePrevious(w http.ResponseWriter, _ *http.Request, _ auth.Session) {
+	s.queue.Previous()
+	w.WriteHeader(http.StatusOK)
+}
+
+// handlePlayNow jumps the cursor to a specific song in the list (tap-to-play on the web).
+func (s *Server) handlePlayNow(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	if !s.queue.PlayNow(r.PathValue("id")) {
+		writeErr(w, http.StatusNotFound, "Song not in the list")
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 

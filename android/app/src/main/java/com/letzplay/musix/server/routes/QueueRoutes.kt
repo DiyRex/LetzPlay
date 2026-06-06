@@ -90,4 +90,14 @@ fun Route.queueRoutes(
         queue.reorder(request.songId, request.targetIndex)
         call.respond(HttpStatusCode.OK)
     }
+
+    // Tap-to-play: jump the cursor straight to a song. Any logged-in user may do this.
+    post("/{id}/play") {
+        val id = call.parameters["id"] ?: return@post call.respond(HttpStatusCode.BadRequest)
+        if (!queue.playNow(id)) {
+            call.respond(HttpStatusCode.NotFound, ErrorResponse("Song not in the list"))
+            return@post
+        }
+        call.respond(HttpStatusCode.OK)
+    }
 }

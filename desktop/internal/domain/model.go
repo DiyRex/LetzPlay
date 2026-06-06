@@ -38,13 +38,27 @@ type Song struct {
 }
 
 // Snapshot is the full, serializable jukebox state broadcast to every remote.
+//
+// The model is a persistent playlist with a moving cursor — NOT a consumed queue. `Tracks` holds
+// every added song in order (played, current, and upcoming all stay in the list); `CurrentIndex`
+// points at the one playing (or -1 when nothing is selected). Advancing/Previous/jumping just move
+// the cursor; songs are only removed by an explicit delete.
 type Snapshot struct {
-	NowPlaying      *Song          `json:"nowPlaying"`
-	Queue           []Song         `json:"queue"`
+	Tracks          []Song         `json:"tracks"`
+	CurrentIndex    int            `json:"currentIndex"`
 	Status          PlaybackStatus `json:"status"`
 	PositionSeconds float64        `json:"positionSeconds"`
 	DurationSeconds float64        `json:"durationSeconds"`
 	Volume          int            `json:"volume"`
+}
+
+// Current returns the playing track, or nil when CurrentIndex is out of range.
+func (s Snapshot) Current() *Song {
+	if s.CurrentIndex < 0 || s.CurrentIndex >= len(s.Tracks) {
+		return nil
+	}
+	t := s.Tracks[s.CurrentIndex]
+	return &t
 }
 
 // Player is the abstraction over the actual audio player. The server depends on this, never on

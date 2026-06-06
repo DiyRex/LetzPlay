@@ -174,17 +174,21 @@ func (m Model) View() string {
 
 func (m Model) renderNowPlaying() string {
 	var body strings.Builder
-	if m.snap.NowPlaying == nil {
+	song := m.snap.Current()
+	if song == nil {
 		body.WriteString(labelStyle.Render("Nothing playing — add a song from the web remote."))
 	} else {
-		song := m.snap.NowPlaying
+		upNext := 0
+		if m.snap.CurrentIndex >= 0 {
+			upNext = len(m.snap.Tracks) - m.snap.CurrentIndex - 1
+		}
 		body.WriteString(selectedStyle.Render(truncate(song.Title, 56)) + "\n")
 		body.WriteString(labelStyle.Render(fmt.Sprintf("added by %s · %s", song.AddedBy, m.snap.Status)) + "\n")
 		body.WriteString(renderProgress(m.snap.PositionSeconds, m.snap.DurationSeconds, 40) + "\n")
 		body.WriteString(labelStyle.Render(fmt.Sprintf(
-			"%s / %s   vol %d%%   up next: %d",
+			"%s / %s   vol %d%%   %d in list · %d up next",
 			formatTime(m.snap.PositionSeconds), formatTime(m.snap.DurationSeconds),
-			m.snap.Volume, len(m.snap.Queue))))
+			m.snap.Volume, len(m.snap.Tracks), upNext)))
 	}
 	return panelStyle.Render(labelStyle.Render("NOW PLAYING")+"\n"+body.String()) + "\n"
 }

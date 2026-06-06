@@ -7,16 +7,23 @@ import kotlinx.serialization.Serializable
 enum class PlaybackStatus { IDLE, BUFFERING, PLAYING, PAUSED, ENDED }
 
 /**
- * A full, serializable snapshot of what the jukebox is doing right now.
- * This single object is the contract between the player, the queue, and the web remotes —
- * the server broadcasts it on every change so all clients render from one source of truth.
+ * A full, serializable snapshot of the jukebox. The model is a persistent playlist with a moving
+ * cursor — NOT a consumed queue: [tracks] keeps every added song (played, current, upcoming) and
+ * [currentIndex] points at the one playing (-1 when none). Advancing/previous/jumping only move
+ * the cursor; songs leave only via explicit removal.
+ *
+ * This single object is the contract between player, queue, and web remotes; the server broadcasts
+ * it on every change so all clients render from one source of truth.
  */
 @Serializable
 data class JukeboxSnapshot(
-    val nowPlaying: Song? = null,
-    val queue: List<Song> = emptyList(),
+    val tracks: List<Song> = emptyList(),
+    val currentIndex: Int = -1,
     val status: PlaybackStatus = PlaybackStatus.IDLE,
     val positionSeconds: Float = 0f,
     val durationSeconds: Float = 0f,
     val volume: Int = 100,
-)
+) {
+    /** The currently-playing track, or null when [currentIndex] is out of range. */
+    val current: Song? get() = tracks.getOrNull(currentIndex)
+}

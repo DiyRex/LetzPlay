@@ -28,10 +28,10 @@ func StartCoordinator(ctx context.Context, q *domain.Queue, mpv *Mpv, pf *Prefet
 				if !ok {
 					return
 				}
-				current := videoID(snap.NowPlaying)
+				current := videoID(snap.Current())
 				next := ""
-				if len(snap.Queue) > 0 {
-					next = snap.Queue[0].VideoID
+				if snap.CurrentIndex >= 0 && snap.CurrentIndex+1 < len(snap.Tracks) {
+					next = snap.Tracks[snap.CurrentIndex+1].VideoID
 				}
 
 				if current != "" && current != lastLoaded {
