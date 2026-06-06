@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * shadcn/ui design tokens. Dark-only by design (this is a party remote) with a violet primary
+ * (#7C5CFF) that matches the TV app's accent so both surfaces feel like one product.
+ */
+@layer base {
+  :root {
+    --background: 240 16% 5%;
+    --foreground: 0 0% 98%;
+    --card: 240 13% 10%;
+    --card-foreground: 0 0% 98%;
+    --primary: 252 100% 68%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 8% 18%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 8% 16%;
+    --muted-foreground: 240 6% 64%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 8% 20%;
+    --input: 240 8% 20%;
+    --ring: 252 100% 68%;
+    --radius: 0.85rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    /* Respect device notches/safe areas on phones. */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}

@@ -1,0 +1,30 @@
+# ---- Android ----
+*.iml
+.gradle/
+.idea/
+android/local.properties
+android/.cxx/
+android/app/build/
+android/build/
+android/captures/
+*.keystore
+!debug.keystore
+
+# Generated web bundle copied into the app assets (built from /web).
+android/app/src/main/assets/web/
+
+# ---- Web (React remote) ----
+web/node_modules/
+web/dist/
+web/.vite/
+
+# ---- Go (desktop binary) ----
+desktop/bin/
+# NOTE: desktop/internal/webui/dist/ is intentionally tracked (placeholder index.html) so the
+# embed directive always compiles; build-web.sh overwrites it with the real bundle locally.
+desktop/internal/webui/dist/assets/
+*.test
+
+# ---- Misc ----
+.DS_Store
+*.log
