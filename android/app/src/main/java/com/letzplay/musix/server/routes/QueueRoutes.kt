@@ -5,6 +5,7 @@ import com.letzplay.musix.data.youtube.YouTubeUrlParser
 import com.letzplay.musix.domain.model.Song
 import com.letzplay.musix.domain.queue.MusicQueue
 import com.letzplay.musix.server.auth.UserSession
+import com.letzplay.musix.server.dto.AddResult
 import com.letzplay.musix.server.dto.AddSongRequest
 import com.letzplay.musix.server.dto.ErrorResponse
 import com.letzplay.musix.server.dto.ReorderRequest
@@ -54,7 +55,8 @@ fun Route.queueRoutes(
             addedAtEpochMs = nowMillis(),
         )
         queue.add(song)
-        call.respond(HttpStatusCode.Created, song)
+        // Android adds a single video (playlist expansion needs yt-dlp, desktop-only) → added = 1.
+        call.respond(HttpStatusCode.Created, AddResult(added = 1, song = song))
     }
 
     delete("/{id}") {

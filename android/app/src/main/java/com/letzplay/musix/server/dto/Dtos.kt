@@ -20,6 +20,14 @@ data class SessionResponse(val username: String, val role: UserRole)
 @Serializable
 data class AddSongRequest(val url: String)
 
+/**
+ * Response to POST /api/queue. [added] is how many tracks were queued (>1 for a playlist; the
+ * Android app adds the single video and returns 1), [song] is the representative track. Matches
+ * the Go server's `addResult`.
+ */
+@Serializable
+data class AddResult(val added: Int, val song: com.letzplay.musix.domain.model.Song)
+
 @Serializable
 data class ReorderRequest(val songId: String, val targetIndex: Int)
 

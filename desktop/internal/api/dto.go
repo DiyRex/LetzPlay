@@ -27,6 +27,13 @@ type sessionResponse struct {
 	Role     domain.Role `json:"role"`
 }
 
+// addResult is the response to POST /api/queue. `added` is how many tracks were queued (>1 for a
+// playlist); `song` is the first/representative track. Same shape on the Android server.
+type addResult struct {
+	Added int         `json:"added"`
+	Song  domain.Song `json:"song"`
+}
+
 type errorResponse struct {
 	Error string `json:"error"`
 }

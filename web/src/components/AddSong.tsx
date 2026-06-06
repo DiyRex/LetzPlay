@@ -16,8 +16,10 @@ export function AddSong() {
     if (!trimmed || submitting) return
     setSubmitting(true)
     try {
-      const song = await api.addSong(trimmed)
-      toast.success(`Added "${song.title}"`)
+      const result = await api.addSong(trimmed)
+      toast.success(
+        result.added > 1 ? `Added ${result.added} songs to the queue` : `Added "${result.song.title}"`,
+      )
       setUrl("")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not add song")
@@ -31,7 +33,7 @@ export function AddSong() {
       <Input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
-        placeholder="Paste a YouTube link…"
+        placeholder="Paste a YouTube link or playlist…"
         inputMode="url"
         autoComplete="off"
         aria-label="YouTube link"

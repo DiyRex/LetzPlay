@@ -1,8 +1,8 @@
 import { AddSong } from "@/components/AddSong"
-import { AdminControls } from "@/components/AdminControls"
 import { ConnectedUsers } from "@/components/ConnectedUsers"
 import { Header } from "@/components/Header"
 import { NowPlaying } from "@/components/NowPlaying"
+import { PlayerControls } from "@/components/PlayerControls"
 import { QueueList } from "@/components/QueueList"
 import { Separator } from "@/components/ui/separator"
 import { useJukebox } from "@/hooks/useJukebox"
@@ -13,7 +13,7 @@ interface RemotePageProps {
   onLogout: () => void
 }
 
-/** The main remote: live now-playing, transport (admins), add-a-song, presence, and the queue. */
+/** The main remote: live now-playing, transport + volume, add-a-song, presence, and the queue. */
 export function RemotePage({ session, onLogout }: RemotePageProps) {
   const { snapshot, users } = useJukebox(true)
 
@@ -26,7 +26,7 @@ export function RemotePage({ session, onLogout }: RemotePageProps) {
 
       <NowPlaying snapshot={snapshot} />
 
-      {session.role === "ADMIN" && <AdminControls snapshot={snapshot} />}
+      <PlayerControls snapshot={snapshot} />
 
       <AddSong />
 

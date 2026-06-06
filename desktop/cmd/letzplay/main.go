@@ -59,7 +59,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer mpv.Stop()
-	player.StartCoordinator(ctx, queue, mpv)
+	prefetcher := player.NewPrefetcher()
+	player.StartCoordinator(ctx, queue, mpv, prefetcher)
 
 	authService, err := auth.NewService(*adminPassword, *guestPassword, !*open)
 	if err != nil {

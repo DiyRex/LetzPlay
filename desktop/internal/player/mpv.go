@@ -50,6 +50,13 @@ type Mpv struct {
 
 	deviceMu sync.RWMutex
 	current  string
+
+	// Status is derived from three mpv signals so we report honestly: a track is only PLAYING
+	// when a file is loaded, not paused, and actually decoding (not buffering). These are touched
+	// only from the single readLoop goroutine.
+	loaded   bool
+	paused   bool
+	coreIdle bool
 }
 
 // NewMpv wires the player to the queue via callbacks (status in, progress in, auto-advance on end).
@@ -81,6 +88,10 @@ func (m *Mpv) Start(ctx context.Context) error {
 		"--no-terminal",
 		"--ytdl=yes",
 		"--volume=100",
+		// Network read-ahead so playback doesn't stall mid-song once it starts.
+		"--cache=yes",
+		"--cache-secs=120",
+		"--demuxer-max-bytes=64MiB",
 		"--input-ipc-server="+m.socketPath,
 	)
 	if err := m.cmd.Start(); err != nil {
@@ -98,6 +109,7 @@ func (m *Mpv) Start(ctx context.Context) error {
 	m.observe("time-pos", 1)
 	m.observe("duration", 2)
 	m.observe("pause", 3)
+	m.observe("core-idle", 4) // true while not actively decoding (buffering/seeking/idle)
 	return nil
 }
 
@@ -117,7 +129,13 @@ func (m *Mpv) Stop() {
 // --- domain.Player ---
 
 func (m *Mpv) Load(videoID string) {
-	m.command("loadfile", "https://www.youtube.com/watch?v="+videoID, "replace")
+	m.LoadURL("https://www.youtube.com/watch?v=" + videoID)
+}
+
+// LoadURL plays an already-resolved media URL directly. The prefetcher uses this with a yt-dlp
+// pre-resolved direct stream URL so mpv skips the (slow) resolution step at transition time.
+func (m *Mpv) LoadURL(url string) {
+	m.command("loadfile", url, "replace")
 }
 func (m *Mpv) Play()                 { m.command("set_property", "pause", false) }
 func (m *Mpv) Pause()                { m.command("set_property", "pause", true) }
@@ -264,13 +282,12 @@ func (m *Mpv) deliverReply(msg ipcMessage) {
 func (m *Mpv) handleEvent(msg ipcMessage) {
 	switch msg.Event {
 	case "start-file":
-		m.onStatus(domain.StatusBuffering)
-	case "playback-restart":
-		m.onStatus(domain.StatusPlaying)
+		m.loaded = true
+		m.emitStatus()
 	case "end-file":
+		m.loaded = false
 		// Advance only when a track finishes or errors — not on our own "replace" stop.
 		if msg.Reason == "eof" || msg.Reason == "error" {
-			m.onStatus(domain.StatusEnded)
 			m.onEnded()
 		}
 	case "property-change":
@@ -291,14 +308,28 @@ func (m *Mpv) handlePropertyChange(msg ipcMessage) {
 			m.duration = dur
 		}
 	case "pause":
-		var paused bool
-		if json.Unmarshal(msg.Data, &paused) == nil {
-			if paused {
-				m.onStatus(domain.StatusPaused)
-			} else {
-				m.onStatus(domain.StatusPlaying)
-			}
-		}
+		_ = json.Unmarshal(msg.Data, &m.paused)
+		m.emitStatus()
+	case "core-idle":
+		_ = json.Unmarshal(msg.Data, &m.coreIdle)
+		m.emitStatus()
+	}
+}
+
+// emitStatus reports an honest status from the three mpv signals. Crucially it never claims
+// PLAYING while the track is still buffering (core-idle) — which is what made a stalled song look
+// like it was playing — and it stays quiet when nothing is loaded so the queue's IDLE state holds.
+func (m *Mpv) emitStatus() {
+	if !m.loaded {
+		return
+	}
+	switch {
+	case m.paused:
+		m.onStatus(domain.StatusPaused)
+	case m.coreIdle:
+		m.onStatus(domain.StatusBuffering)
+	default:
+		m.onStatus(domain.StatusPlaying)
 	}
 }
 

@@ -65,10 +65,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/queue/{id}", s.protected(s.handleRemoveSong))
 	mux.HandleFunc("POST /api/queue/reorder", s.protected(s.handleReorder))
 
-	mux.HandleFunc("POST /api/player/play", s.adminOnly(s.handlePlay))
-	mux.HandleFunc("POST /api/player/pause", s.adminOnly(s.handlePause))
-	mux.HandleFunc("POST /api/player/skip", s.adminOnly(s.handleSkip))
-	mux.HandleFunc("POST /api/player/volume", s.adminOnly(s.handleVolume))
+	// Transport + volume are available to any logged-in user (shared "party remote" model).
+	// Role still gates managing *other people's* songs (remove/reorder).
+	mux.HandleFunc("POST /api/player/play", s.protected(s.handlePlay))
+	mux.HandleFunc("POST /api/player/pause", s.protected(s.handlePause))
+	mux.HandleFunc("POST /api/player/skip", s.protected(s.handleSkip))
+	mux.HandleFunc("POST /api/player/volume", s.protected(s.handleVolume))
 
 	mux.HandleFunc("GET /ws", s.protected(s.handleWS))
 
@@ -118,12 +120,22 @@ func (s *Server) handleGetQueue(w http.ResponseWriter, _ *http.Request, _ auth.S
 	writeJSON(w, http.StatusOK, s.queue.Snapshot())
 }
 
+// maxPlaylistEntries caps how many tracks a single playlist add can enqueue.
+const maxPlaylistEntries = 100
+
 func (s *Server) handleAddSong(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	var req addSongRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "Malformed request")
 		return
 	}
+
+	// Playlist link → expand into many songs (desktop has yt-dlp). A plain video → one song.
+	if youtube.IsPlaylistURL(req.URL) {
+		s.addPlaylist(w, r, session, req.URL)
+		return
+	}
+
 	videoID, ok := youtube.ExtractVideoID(req.URL)
 	if !ok {
 		writeErr(w, http.StatusBadRequest, "Not a valid YouTube link")
@@ -135,16 +147,45 @@ func (s *Server) handleAddSong(w http.ResponseWriter, r *http.Request, session a
 		title = meta.Title
 		thumb = meta.ThumbnailURL
 	}
-	song := domain.Song{
+	song := s.makeSong(videoID, title, thumb, session.Username)
+	s.queue.Add(song)
+	writeJSON(w, http.StatusCreated, addResult{Added: 1, Song: song})
+}
+
+// addPlaylist enqueues every entry of a playlist URL. The first added song auto-plays via the
+// queue's promotion rule; the rest follow. Titles come from yt-dlp's flat listing (no per-video
+// network call), and thumbnails are derived from the video id.
+func (s *Server) addPlaylist(w http.ResponseWriter, r *http.Request, session auth.Session, url string) {
+	entries, err := youtube.ExpandPlaylist(r.Context(), url, maxPlaylistEntries)
+	if err != nil || len(entries) == 0 {
+		writeErr(w, http.StatusBadRequest, "Could not read that playlist")
+		return
+	}
+	var first domain.Song
+	for i, e := range entries {
+		title := e.Title
+		if title == "" {
+			title = e.VideoID
+		}
+		thumb := "https://i.ytimg.com/vi/" + e.VideoID + "/hqdefault.jpg"
+		song := s.makeSong(e.VideoID, title, thumb, session.Username)
+		if i == 0 {
+			first = song
+		}
+		s.queue.Add(song)
+	}
+	writeJSON(w, http.StatusCreated, addResult{Added: len(entries), Song: first})
+}
+
+func (s *Server) makeSong(videoID, title, thumb, addedBy string) domain.Song {
+	return domain.Song{
 		ID:             newID(),
 		VideoID:        videoID,
 		Title:          title,
 		ThumbnailURL:   thumb,
-		AddedBy:        session.Username,
+		AddedBy:        addedBy,
 		AddedAtEpochMs: time.Now().UnixMilli(),
 	}
-	s.queue.Add(song)
-	writeJSON(w, http.StatusCreated, song)
 }
 
 func (s *Server) handleRemoveSong(w http.ResponseWriter, r *http.Request, session auth.Session) {

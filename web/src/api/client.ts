@@ -1,4 +1,4 @@
-import type { JukeboxSnapshot, Session, Song } from "./types"
+import type { AddResult, JukeboxSnapshot, Session } from "./types"
 
 /**
  * Thin typed wrapper over the server REST API. Every call sends the session cookie
@@ -48,7 +48,7 @@ export const api = {
   getQueue: () => request<JukeboxSnapshot>("/api/queue"),
 
   addSong: (url: string) =>
-    request<Song>("/api/queue", { method: "POST", body: JSON.stringify({ url }) }),
+    request<AddResult>("/api/queue", { method: "POST", body: JSON.stringify({ url }) }),
 
   removeSong: (id: string) => request<void>(`/api/queue/${id}`, { method: "DELETE" }),
 

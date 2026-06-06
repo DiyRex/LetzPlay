@@ -28,6 +28,12 @@ export interface Session {
   role: Role
 }
 
+/** Response to adding a song/playlist: how many were queued, plus the representative track. */
+export interface AddResult {
+  added: number
+  song: Song
+}
+
 /** A connected remote, shown in the "who's here" panel. */
 export interface ConnectedUser {
   username: string

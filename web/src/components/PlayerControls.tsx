@@ -6,12 +6,12 @@ import { Slider } from "@/components/ui/slider"
 import { api } from "@/api/client"
 import type { JukeboxSnapshot } from "@/api/types"
 
-interface AdminControlsProps {
+interface PlayerControlsProps {
   snapshot: JukeboxSnapshot
 }
 
-/** Transport + volume. Rendered only for admins (see RemotePage); the server also enforces this. */
-export function AdminControls({ snapshot }: AdminControlsProps) {
+/** Transport + volume, available to every connected user. The server authorizes any session. */
+export function PlayerControls({ snapshot }: PlayerControlsProps) {
   const isPlaying = snapshot.status === "PLAYING" || snapshot.status === "BUFFERING"
 
   const guard = (fn: () => Promise<void>) => async () => {
