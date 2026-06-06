@@ -16,10 +16,10 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    // During `npm run dev`, proxy API/WS to a running device/emulator on the LAN.
+    // During `npm run dev`, proxy API/WS to a running server (desktop default port 8090).
     proxy: {
-      "/api": { target: "http://localhost:8080", changeOrigin: true },
-      "/ws": { target: "ws://localhost:8080", ws: true },
+      "/api": { target: "http://localhost:8090", changeOrigin: true },
+      "/ws": { target: "ws://localhost:8090", ws: true },
     },
   },
 })

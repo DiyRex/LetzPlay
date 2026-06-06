@@ -20,6 +20,8 @@ web/.vite/
 
 # ---- Go (desktop binary) ----
 desktop/bin/
+# Local config (may hold passwords); .env.example is committed as the template.
+desktop/.env
 # NOTE: desktop/internal/webui/dist/ is intentionally tracked (placeholder index.html) so the
 # embed directive always compiles; build-web.sh overwrites it with the real bundle locally.
 desktop/internal/webui/dist/assets/

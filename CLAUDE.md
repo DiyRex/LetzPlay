@@ -75,8 +75,11 @@ Routes (auth + authz)                              WS hub/broadcaster (+ presenc
 
 ## Where credentials live
 
-- **Desktop:** passed as flags (`--admin-password`, `--guest-password`, `--open`); hashed with
-  bcrypt at startup (`internal/auth`). Session cookies are HMAC-signed with a per-launch secret.
+- **Desktop:** configured via `desktop/.env` or env vars (`LETZPLAY_PORT`,
+  `LETZPLAY_ADMIN_PASSWORD`, `LETZPLAY_GUEST_PASSWORD`, `LETZPLAY_OPEN`, `LETZPLAY_HEADLESS`) loaded
+  in `internal/config`, with flags overriding (precedence: flag > env > .env > default; default
+  port 8090). Passwords are bcrypt-hashed at startup (`internal/auth`); session cookies are
+  HMAC-signed with a per-launch secret. `.env` is git-ignored; `.env.example` is the template.
 - **Android:** stored in `SharedPreferences` via `AppSettings`, hashed with PBKDF2
   (`PasswordHasher`). Defaults `admin` / `party` seed on first run — change them in `AppSettings`
   (or add a settings screen). Session secret is random per launch.

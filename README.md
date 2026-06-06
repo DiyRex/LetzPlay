@@ -60,20 +60,25 @@ brew install go node mpv yt-dlp
 # Debian/Ubuntu
 sudo apt install golang nodejs npm mpv && pipx install yt-dlp
 
-# Build the remote + binary, then run
+# Configure (port + passwords) via env file, then build + run
+cp desktop/.env.example desktop/.env   # edit it: port, admin/guest passwords
 ./scripts/build-desktop.sh
-./desktop/bin/letzplay --admin-password "letmein" --guest-password "party2026"
+./desktop/bin/letzplay                  # reads desktop/.env
 ```
 
-The TUI opens: pick your audio output with ↑/↓ + Enter, and the printed `http://<your-ip>:8080`
-is what guests open. Flags:
+The TUI opens: pick your audio output with ↑/↓ + Enter, and the printed `http://<your-ip>:8090`
+is what guests open.
 
-| Flag | Default | Meaning |
-|------|---------|---------|
-| `--port` | `8080` | web remote port |
-| `--admin-password` | `admin` | grants full control |
-| `--guest-password` | `party` | lets guests join |
-| `--open` | `false` | accept *any* password as a guest (no guest password) |
+**Configuration** comes from `desktop/.env` (or real env vars), and flags override either.
+Precedence: **flag > environment > `.env` > default**.
+
+| Flag | Env var | Default | Meaning |
+|------|---------|---------|---------|
+| `--port` | `LETZPLAY_PORT` | `8090` | web remote port |
+| `--admin-password` | `LETZPLAY_ADMIN_PASSWORD` | `admin` | grants full control |
+| `--guest-password` | `LETZPLAY_GUEST_PASSWORD` | `party` | lets guests join |
+| `--open` | `LETZPLAY_OPEN` | `false` | accept *any* password as a guest |
+| `--headless` | `LETZPLAY_HEADLESS` | `false` | run without the TUI (server box / CI) |
 
 **TUI keys:** `↑/↓` select device · `enter` apply · `space` play/pause · `n` skip · `+/-` volume ·
 `r` refresh devices · `q` quit.

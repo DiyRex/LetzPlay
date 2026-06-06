@@ -19,6 +19,7 @@ import (
 
 	"github.com/DiyRex/LetzPlay/desktop/internal/api"
 	"github.com/DiyRex/LetzPlay/desktop/internal/auth"
+	"github.com/DiyRex/LetzPlay/desktop/internal/config"
 	"github.com/DiyRex/LetzPlay/desktop/internal/domain"
 	"github.com/DiyRex/LetzPlay/desktop/internal/player"
 	"github.com/DiyRex/LetzPlay/desktop/internal/tui"
@@ -26,10 +27,20 @@ import (
 )
 
 func main() {
-	port := flag.Int("port", 8080, "HTTP port for the web remote")
-	adminPassword := flag.String("admin-password", "admin", "password that grants admin (full control)")
-	guestPassword := flag.String("guest-password", "party", "password guests use to join")
-	open := flag.Bool("open", false, "allow guests to join with any password (no guest password)")
+	// Load optional .env (real environment always wins over the file). Flags, parsed below,
+	// override everything — so precedence is: flag > environment > .env > default.
+	config.LoadDotEnv("desktop/.env", ".env")
+
+	port := flag.Int("port", config.Int(config.EnvPort, 8090),
+		"HTTP port for the web remote (env "+config.EnvPort+")")
+	adminPassword := flag.String("admin-password", config.String(config.EnvAdminPassword, "admin"),
+		"password that grants admin (env "+config.EnvAdminPassword+")")
+	guestPassword := flag.String("guest-password", config.String(config.EnvGuestPassword, "party"),
+		"password guests use to join (env "+config.EnvGuestPassword+")")
+	open := flag.Bool("open", config.Bool(config.EnvOpen, false),
+		"allow guests to join with any password (env "+config.EnvOpen+")")
+	headless := flag.Bool("headless", config.Bool(config.EnvHeadless, false),
+		"run without the interactive TUI, for servers with no terminal (env "+config.EnvHeadless+")")
 	flag.Parse()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -74,17 +85,23 @@ func main() {
 
 	url := lanURL(*port)
 
-	// --- foreground TUI ---
-	program := tea.NewProgram(tui.New(ctx, queue, mpv, hub, url), tea.WithAltScreen())
-	go func() {
+	if *headless {
+		// No terminal (server box / CI): just announce the URL and run until interrupted.
+		fmt.Printf("LetzPlay Musix running — open %s   (Ctrl+C to stop)\n", url)
 		<-ctx.Done()
-		program.Quit()
-	}()
-	if _, err := program.Run(); err != nil {
-		log.Printf("tui: %v", err)
+	} else {
+		// --- foreground TUI ---
+		program := tea.NewProgram(tui.New(ctx, queue, mpv, hub, url), tea.WithAltScreen())
+		go func() {
+			<-ctx.Done()
+			program.Quit()
+		}()
+		if _, err := program.Run(); err != nil {
+			log.Printf("tui: %v", err)
+		}
 	}
 
-	// TUI exited (q pressed) — tear everything down.
+	// Tear everything down (TUI quit, or signal in headless mode).
 	cancel()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer shutdownCancel()
