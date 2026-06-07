@@ -26,6 +26,7 @@ type Hub struct {
 	register   chan *client
 	unregister chan *client
 	clients    map[*client]bool
+	notify     chan struct{} // request an immediate re-broadcast (e.g. after a vote)
 	upgrader   websocket.Upgrader
 	users      atomic.Value // []ConnectedUser, for the TUI to read lock-free
 
@@ -48,6 +49,7 @@ func NewHub(queue *domain.Queue) *Hub {
 		register:   make(chan *client),
 		unregister: make(chan *client),
 		clients:    make(map[*client]bool),
+		notify:     make(chan struct{}, 1),
 		// Same-origin only: the page is served by this very server.
 		upgrader: websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }},
 		voters:   make(map[string]bool),
@@ -124,7 +126,18 @@ func (h *Hub) Run(ctx context.Context) {
 			h.broadcast(h.queue.Snapshot())
 		case snap := <-updates:
 			h.broadcast(snap)
+		case <-h.notify:
+			h.broadcast(h.queue.Snapshot())
 		}
+	}
+}
+
+// Broadcast requests an immediate re-broadcast of current state (safe to call from any goroutine).
+// Used after a vote so all clients see the new count instantly instead of waiting for a tick.
+func (h *Hub) Broadcast() {
+	select {
+	case h.notify <- struct{}{}:
+	default: // a broadcast is already pending
 	}
 }
 

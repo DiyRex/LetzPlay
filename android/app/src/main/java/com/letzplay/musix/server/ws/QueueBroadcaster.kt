@@ -56,10 +56,14 @@ class QueueBroadcaster(
             voters.size
         }
         val needed = skipThreshold(distinctUsers().size)
+        broadcast(queue.snapshot.value) // push the new count to every device immediately
         return Triple(votes, needed, votes >= needed)
     }
 
-    fun resetVotes() = synchronized(voteLock) { voteKey = ""; voters.clear() }
+    fun resetVotes() {
+        synchronized(voteLock) { voteKey = ""; voters.clear() }
+        broadcast(queue.snapshot.value)
+    }
 
     fun setSleepAt(ms: Long) {
         sleepAtMs = ms

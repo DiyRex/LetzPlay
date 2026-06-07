@@ -75,9 +75,10 @@ func (s *Server) handleVoteSkip(w http.ResponseWriter, _ *http.Request, session 
 	}
 	_, _, reached := s.hub.VoteSkip(current.VideoID, session.Username)
 	if reached {
-		s.queue.Advance()
+		s.queue.Advance() // triggers a broadcast via the queue update
 		s.hub.ResetVotes()
 	}
+	s.hub.Broadcast() // push the new vote count (or the reset) to every device immediately
 	w.WriteHeader(http.StatusOK)
 }
 
