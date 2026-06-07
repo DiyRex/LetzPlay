@@ -2,6 +2,7 @@ package com.letzplay.musix.server.routes
 
 import android.content.res.AssetManager
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.response.respondBytes
@@ -28,6 +29,14 @@ fun Route.staticWebRoutes(assets: AssetManager, basePath: String = "web") {
             call.respond(HttpStatusCode.NotFound)
             return@get
         }
+        // Hashed assets are immutable; the HTML entry point must never be cached or browsers keep
+        // loading a stale bundle after a rebuild.
+        val cache = if (assetPath.contains("/assets/")) {
+            "public, max-age=31536000, immutable"
+        } else {
+            "no-cache, no-store, must-revalidate"
+        }
+        call.response.headers.append(HttpHeaders.CacheControl, cache)
         call.respondBytes(bytes, contentTypeFor(assetPath))
     }
 }

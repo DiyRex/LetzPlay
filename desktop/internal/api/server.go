@@ -347,6 +347,13 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		path = "index.html"
 	}
 	w.Header().Set("Content-Type", contentType(path))
+	// Hashed assets (assets/index-<hash>.js) are immutable; the HTML entry point must NOT be cached
+	// or browsers keep loading a stale bundle after a rebuild.
+	if strings.HasPrefix(path, "assets/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	}
 	_, _ = w.Write(data)
 }
 
