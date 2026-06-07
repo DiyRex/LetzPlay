@@ -1,10 +1,12 @@
-import { AddSong } from "@/components/AddSong"
+import { useState } from "react"
+import { BottomNav, type Tab } from "@/components/BottomNav"
 import { ConnectedUsers } from "@/components/ConnectedUsers"
 import { Header } from "@/components/Header"
 import { NowPlaying } from "@/components/NowPlaying"
 import { PlayerControls } from "@/components/PlayerControls"
-import { QueueList } from "@/components/QueueList"
 import { Separator } from "@/components/ui/separator"
+import { PlaylistsPage } from "@/pages/PlaylistsPage"
+import { QueuePage } from "@/pages/QueuePage"
 import { useJukebox } from "@/hooks/useJukebox"
 import type { Session } from "@/api/types"
 
@@ -13,26 +15,31 @@ interface RemotePageProps {
   onLogout: () => void
 }
 
-/** The main remote: live now-playing, transport + volume, add-a-song, presence, and the queue. */
+/** App shell: a sticky header, the active tab's content, and a bottom nav (player / songs / playlists). */
 export function RemotePage({ session, onLogout }: RemotePageProps) {
   const { snapshot, users } = useJukebox(true)
+  const [tab, setTab] = useState<Tab>("play")
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-8">
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-24 pt-1">
       <div className="sticky top-0 z-10 -mx-4 bg-background/85 px-4 backdrop-blur">
         <Header session={session} onLogout={onLogout} />
         <Separator />
       </div>
 
-      <NowPlaying snapshot={snapshot} />
+      {tab === "play" && (
+        <>
+          <NowPlaying snapshot={snapshot} />
+          <PlayerControls snapshot={snapshot} />
+          <ConnectedUsers users={users} me={session.username} />
+        </>
+      )}
 
-      <PlayerControls snapshot={snapshot} />
+      {tab === "queue" && <QueuePage snapshot={snapshot} session={session} />}
 
-      <AddSong />
+      {tab === "playlists" && <PlaylistsPage />}
 
-      <ConnectedUsers users={users} me={session.username} />
-
-      <QueueList snapshot={snapshot} session={session} />
+      <BottomNav tab={tab} onChange={setTab} queueCount={snapshot.tracks.length} />
     </div>
   )
 }

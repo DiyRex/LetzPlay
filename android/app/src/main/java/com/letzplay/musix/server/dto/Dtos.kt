@@ -35,7 +35,35 @@ data class ReorderRequest(val songId: String, val targetIndex: Int)
 data class VolumeRequest(val volume: Int)
 
 @Serializable
+data class SeekRequest(val seconds: Float)
+
+@Serializable
+data class ShuffleRequest(val shuffle: Boolean)
+
+@Serializable
+data class RepeatRequest(val repeat: com.letzplay.musix.domain.model.RepeatMode)
+
+@Serializable
 data class ErrorResponse(val error: String)
+
+// --- Playlists ---
+
+@Serializable
+data class PlaylistSong(val videoId: String, val title: String, val thumbnailUrl: String? = null)
+
+@Serializable
+data class PlaylistSummary(val id: String, val name: String, val count: Int)
+
+@Serializable
+data class Playlist(
+    val id: String,
+    val name: String,
+    val songs: List<PlaylistSong> = emptyList(),
+    val updatedAtMs: Long = 0,
+)
+
+@Serializable
+data class NamedRequest(val name: String)
 
 /** One present remote, shown in the web "who's here" panel. */
 @Serializable

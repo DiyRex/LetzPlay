@@ -22,6 +22,7 @@ import (
 	"github.com/DiyRex/LetzPlay/desktop/internal/config"
 	"github.com/DiyRex/LetzPlay/desktop/internal/domain"
 	"github.com/DiyRex/LetzPlay/desktop/internal/player"
+	"github.com/DiyRex/LetzPlay/desktop/internal/playlist"
 	"github.com/DiyRex/LetzPlay/desktop/internal/tui"
 	"github.com/DiyRex/LetzPlay/desktop/internal/webui"
 )
@@ -76,7 +77,9 @@ func main() {
 		log.Fatalf("web assets: %v", err)
 	}
 
-	server := api.NewServer(queue, mpv, authService, sessions, hub, assets)
+	playlists := playlist.NewStore(playlist.DefaultPath())
+
+	server := api.NewServer(queue, mpv, authService, sessions, hub, assets, playlists)
 	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", *port), Handler: server.Handler()}
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {

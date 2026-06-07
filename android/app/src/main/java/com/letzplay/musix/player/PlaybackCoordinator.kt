@@ -1,5 +1,6 @@
 package com.letzplay.musix.player
 
+import com.letzplay.musix.domain.model.RepeatMode
 import com.letzplay.musix.domain.player.PlaybackController
 import com.letzplay.musix.domain.queue.MusicQueue
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +26,13 @@ class PlaybackCoordinator(
             .map { it.current?.videoId }
             .distinctUntilChanged()
             .onEach { videoId -> if (videoId != null) controller.load(videoId) }
+            .launchIn(scope)
+
+        // Keep the player's loop flag in sync with repeat-one (it replays instead of advancing).
+        queue.snapshot
+            .map { it.repeat == RepeatMode.ONE }
+            .distinctUntilChanged()
+            .onEach { loop -> controller.setLoop(loop) }
             .launchIn(scope)
     }
 }

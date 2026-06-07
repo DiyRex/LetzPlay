@@ -2,7 +2,9 @@ package com.letzplay.musix.domain.queue
 
 import com.letzplay.musix.domain.model.JukeboxSnapshot
 import com.letzplay.musix.domain.model.PlaybackStatus
+import com.letzplay.musix.domain.model.RepeatMode
 import com.letzplay.musix.domain.model.Song
+import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -84,18 +86,44 @@ class MusicQueue {
     /** Who added a song, or null if it isn't in the list (for permission checks in routes). */
     fun ownerOf(songId: String): String? = snapshot.value.tracks.firstOrNull { it.id == songId }?.addedBy
 
-    /** Advance the cursor; go idle at the end without removing anything. */
+    /**
+     * Advance the cursor. Respects shuffle (random pick) and repeat-all (wrap). Repeat-one is
+     * handled by the player looping the file, so advance isn't called then. Nothing is removed.
+     */
     fun advance(): Unit = mutate { current ->
-        if (current.currentIndex + 1 < current.tracks.size) {
-            current.copy(
+        val n = current.tracks.size
+        when {
+            n == 0 -> current.copy(currentIndex = -1, status = PlaybackStatus.IDLE, positionSeconds = 0f, durationSeconds = 0f)
+            current.shuffle && n > 1 -> current.copy(
+                currentIndex = randomOtherIndex(n, current.currentIndex),
+                status = PlaybackStatus.BUFFERING,
+                positionSeconds = 0f,
+                durationSeconds = 0f,
+            )
+            current.currentIndex + 1 < n -> current.copy(
                 currentIndex = current.currentIndex + 1,
                 status = PlaybackStatus.BUFFERING,
                 positionSeconds = 0f,
                 durationSeconds = 0f,
             )
-        } else {
-            current.copy(status = PlaybackStatus.IDLE, positionSeconds = 0f, durationSeconds = 0f)
+            current.repeat == RepeatMode.ALL -> current.copy(
+                currentIndex = 0,
+                status = PlaybackStatus.BUFFERING,
+                positionSeconds = 0f,
+                durationSeconds = 0f,
+            )
+            else -> current.copy(status = PlaybackStatus.IDLE, positionSeconds = 0f, durationSeconds = 0f)
         }
+    }
+
+    fun setShuffle(on: Boolean): Unit = mutate { it.copy(shuffle = on) }
+
+    fun setRepeat(mode: RepeatMode): Unit = mutate { it.copy(repeat = mode) }
+
+    private fun randomOtherIndex(n: Int, current: Int): Int {
+        if (n <= 1) return 0
+        val i = Random.nextInt(n - 1)
+        return if (i >= current) i + 1 else i
     }
 
     /** Move the cursor back one track. Returns false when already at the start. */
@@ -131,7 +159,9 @@ class MusicQueue {
         return moved
     }
 
-    fun clear(): Unit = mutate { JukeboxSnapshot(volume = it.volume) }
+    fun clear(): Unit = mutate {
+        JukeboxSnapshot(volume = it.volume, shuffle = it.shuffle, repeat = it.repeat)
+    }
 
     // --- playback metadata, pushed in from the player coordinator ---
 

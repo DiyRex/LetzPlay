@@ -16,6 +16,15 @@ const (
 	StatusEnded     PlaybackStatus = "ENDED"
 )
 
+// RepeatMode controls what happens at the end of a track.
+type RepeatMode string
+
+const (
+	RepeatOff RepeatMode = "OFF" // stop at the end of the list
+	RepeatAll RepeatMode = "ALL" // wrap back to the first track
+	RepeatOne RepeatMode = "ONE" // loop the current track
+)
+
 // Role is the authorization tier resolved at login.
 type Role string
 
@@ -50,6 +59,8 @@ type Snapshot struct {
 	PositionSeconds float64        `json:"positionSeconds"`
 	DurationSeconds float64        `json:"durationSeconds"`
 	Volume          int            `json:"volume"`
+	Shuffle         bool           `json:"shuffle"`
+	Repeat          RepeatMode     `json:"repeat"`
 }
 
 // Current returns the playing track, or nil when CurrentIndex is out of range.
@@ -67,5 +78,7 @@ type Player interface {
 	Load(videoID string)
 	Play()
 	Pause()
+	Seek(seconds float64)
 	SetVolume(percent int)
+	SetLoop(loop bool) // loop the current file (used for RepeatOne)
 }

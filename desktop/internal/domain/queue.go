@@ -1,6 +1,9 @@
 package domain
 
-import "sync"
+import (
+	"math/rand"
+	"sync"
+)
 
 // Queue owns jukebox state as a persistent playlist with a moving cursor (CurrentIndex), mirroring
 // the Android app's MusicQueue.
@@ -21,7 +24,7 @@ type Queue struct {
 // NewQueue returns an empty, idle queue.
 func NewQueue() *Queue {
 	return &Queue{
-		snap:        Snapshot{Tracks: []Song{}, CurrentIndex: -1, Status: StatusIdle, Volume: 100},
+		snap:        Snapshot{Tracks: []Song{}, CurrentIndex: -1, Status: StatusIdle, Volume: 100, Repeat: RepeatOff},
 		subscribers: make(map[int]chan Snapshot),
 	}
 }
@@ -134,19 +137,65 @@ func (q *Queue) Reorder(songID string, targetIndex int) bool {
 	return moved
 }
 
-// Advance moves the cursor to the next track, going idle at the end (without removing anything).
+// Advance moves the cursor to the next track. Respects shuffle (random pick) and repeat-all (wrap
+// at the end). Repeat-one is handled by the player looping the file, so Advance isn't called then.
+// Nothing is ever removed.
 func (q *Queue) Advance() {
 	q.mutate(func(cur Snapshot) Snapshot {
-		if cur.CurrentIndex+1 < len(cur.Tracks) {
+		n := len(cur.Tracks)
+		switch {
+		case n == 0:
+			cur.CurrentIndex = -1
+			cur.Status = StatusIdle
+		case cur.Shuffle && n > 1:
+			cur.CurrentIndex = randomOtherIndex(n, cur.CurrentIndex)
+			cur.Status = StatusBuffering
+		case cur.CurrentIndex+1 < n:
 			cur.CurrentIndex++
 			cur.Status = StatusBuffering
-		} else {
-			cur.Status = StatusIdle // reached the end; cursor stays on the last track
+		case cur.Repeat == RepeatAll:
+			cur.CurrentIndex = 0
+			cur.Status = StatusBuffering
+		default:
+			cur.Status = StatusIdle // end of list, cursor stays put
 		}
 		cur.PositionSeconds = 0
 		cur.DurationSeconds = 0
 		return cur
 	})
+}
+
+// SetShuffle toggles shuffle mode.
+func (q *Queue) SetShuffle(on bool) {
+	q.mutate(func(cur Snapshot) Snapshot { cur.Shuffle = on; return cur })
+}
+
+// SetRepeat sets the repeat mode (OFF/ALL/ONE).
+func (q *Queue) SetRepeat(mode RepeatMode) {
+	q.mutate(func(cur Snapshot) Snapshot { cur.Repeat = mode; return cur })
+}
+
+// Clear empties the whole list and stops playback (volume/shuffle/repeat preserved).
+func (q *Queue) Clear() {
+	q.mutate(func(cur Snapshot) Snapshot {
+		cur.Tracks = []Song{}
+		cur.CurrentIndex = -1
+		cur.Status = StatusIdle
+		cur.PositionSeconds = 0
+		cur.DurationSeconds = 0
+		return cur
+	})
+}
+
+func randomOtherIndex(n, current int) int {
+	if n <= 1 {
+		return 0
+	}
+	i := rand.Intn(n - 1)
+	if i >= current {
+		i++ // skip the current index so we don't replay the same track
+	}
+	return i
 }
 
 // Previous moves the cursor back one track. No-op (false) when already at the start.

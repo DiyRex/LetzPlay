@@ -37,8 +37,11 @@ anything in `web/`.**
 
 ## Features
 
-- 🎵 Paste a YouTube link (watch / `youtu.be` / shorts / embed / live / bare id) → it queues.
-- 📜 Live queue: add, remove, reorder. Auto-advances when a song ends.
+- 🎵 Paste a YouTube link (watch / `youtu.be` / shorts / embed / live / bare id) or a **playlist** → it queues.
+- 📜 Persistent song list (played, current, upcoming all stay): add, remove, reorder, **tap any song to play it**.
+- ⏯ Full transport: **previous / play-pause / next**, an interactive **seek bar**, **volume**, **shuffle**, and **repeat** (off / all / one) — all live across every remote.
+- 💾 **Playlists**: create, add songs, save the current queue as a playlist, and load a playlist back into the queue (persisted on desktop).
+- 📑 Tabbed remote: **Now Playing · Songs · Playlists**.
 - 👮 **Login with roles.** A shared *party password* (guest) and an *admin password* (full control).
   Guests manage only songs they added; admins control playback and any song.
 - 🧑‍🤝‍🧑 **Live presence.** See who's connected, and who added each track.

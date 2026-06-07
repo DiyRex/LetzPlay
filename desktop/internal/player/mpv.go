@@ -139,7 +139,18 @@ func (m *Mpv) LoadURL(url string) {
 }
 func (m *Mpv) Play()                 { m.command("set_property", "pause", false) }
 func (m *Mpv) Pause()                { m.command("set_property", "pause", true) }
+func (m *Mpv) Seek(seconds float64)  { m.command("seek", seconds, "absolute") }
 func (m *Mpv) SetVolume(percent int) { m.command("set_property", "volume", clampVolume(percent)) }
+
+// SetLoop loops the current file forever (RepeatOne) or not. mpv emits no end-file while looping,
+// so the queue never advances — exactly the repeat-one behaviour.
+func (m *Mpv) SetLoop(loop bool) {
+	if loop {
+		m.command("set_property", "loop-file", "inf")
+	} else {
+		m.command("set_property", "loop-file", "no")
+	}
+}
 
 // --- audio device control (used by the TUI) ---
 

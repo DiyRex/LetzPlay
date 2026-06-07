@@ -1,4 +1,11 @@
-import type { AddResult, JukeboxSnapshot, Session } from "./types"
+import type {
+  AddResult,
+  JukeboxSnapshot,
+  Playlist,
+  PlaylistSummary,
+  RepeatMode,
+  Session,
+} from "./types"
 
 /**
  * Thin typed wrapper over the server REST API. Every call sends the session cookie
@@ -65,6 +72,28 @@ export const api = {
   pause: () => request<void>("/api/player/pause", { method: "POST" }),
   skip: () => request<void>("/api/player/skip", { method: "POST" }),
   previous: () => request<void>("/api/player/previous", { method: "POST" }),
+  seek: (seconds: number) =>
+    request<void>("/api/player/seek", { method: "POST", body: JSON.stringify({ seconds }) }),
+  setShuffle: (shuffle: boolean) =>
+    request<void>("/api/player/shuffle", { method: "POST", body: JSON.stringify({ shuffle }) }),
+  setRepeat: (repeat: RepeatMode) =>
+    request<void>("/api/player/repeat", { method: "POST", body: JSON.stringify({ repeat }) }),
+  clearQueue: () => request<void>("/api/player/clear", { method: "POST" }),
+
+  // Playlists
+  listPlaylists: () => request<PlaylistSummary[]>("/api/playlists"),
+  createPlaylist: (name: string) =>
+    request<Playlist>("/api/playlists", { method: "POST", body: JSON.stringify({ name }) }),
+  saveQueueAsPlaylist: (name: string) =>
+    request<Playlist>("/api/playlists/save-queue", { method: "POST", body: JSON.stringify({ name }) }),
+  getPlaylist: (id: string) => request<Playlist>(`/api/playlists/${id}`),
+  deletePlaylist: (id: string) => request<void>(`/api/playlists/${id}`, { method: "DELETE" }),
+  addPlaylistSong: (id: string, url: string) =>
+    request<Playlist>(`/api/playlists/${id}/songs`, { method: "POST", body: JSON.stringify({ url }) }),
+  removePlaylistSong: (id: string, videoId: string) =>
+    request<void>(`/api/playlists/${id}/songs/${videoId}`, { method: "DELETE" }),
+  enqueuePlaylist: (id: string) =>
+    request<AddResult>(`/api/playlists/${id}/enqueue`, { method: "POST" }),
   setVolume: (volume: number) =>
     request<void>("/api/player/volume", { method: "POST", body: JSON.stringify({ volume }) }),
 }

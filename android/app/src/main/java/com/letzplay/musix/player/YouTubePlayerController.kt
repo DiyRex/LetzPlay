@@ -35,6 +35,12 @@ class YouTubePlayerController(
     private var lastPosition = 0f
     private var lastDuration = 0f
 
+    @Volatile
+    private var loop = false
+
+    @Volatile
+    private var lastVideoId: String? = null
+
     /** Register this on the [com.pierfrancescosoffritti.androidyoutubeplayer.core.views.YouTubePlayerView]. */
     val listener = object : AbstractYouTubePlayerListener() {
         override fun onReady(youTubePlayer: YouTubePlayer) {
@@ -47,8 +53,13 @@ class YouTubePlayerController(
                 PlayerConstants.PlayerState.PAUSED -> onStatusChanged(PlaybackStatus.PAUSED)
                 PlayerConstants.PlayerState.BUFFERING -> onStatusChanged(PlaybackStatus.BUFFERING)
                 PlayerConstants.PlayerState.ENDED -> {
-                    onStatusChanged(PlaybackStatus.ENDED)
-                    onEnded() // auto-advance the queue
+                    if (loop) {
+                        // Repeat-one: replay the current track instead of advancing.
+                        lastVideoId?.let { id -> onMain { it.loadVideo(id, 0f) } }
+                    } else {
+                        onStatusChanged(PlaybackStatus.ENDED)
+                        onEnded() // auto-advance the queue
+                    }
                 }
                 else -> Unit
             }
@@ -69,11 +80,15 @@ class YouTubePlayerController(
         player = null
     }
 
-    override fun load(videoId: String) = onMain { it.loadVideo(videoId, 0f) }
+    override fun load(videoId: String) {
+        lastVideoId = videoId
+        onMain { it.loadVideo(videoId, 0f) }
+    }
     override fun play() = onMain { it.play() }
     override fun pause() = onMain { it.pause() }
     override fun seekTo(seconds: Float) = onMain { it.seekTo(seconds) }
     override fun setVolume(percent: Int) = onMain { it.setVolume(percent.coerceIn(0, 100)) }
+    override fun setLoop(loop: Boolean) { this.loop = loop }
 
     private inline fun onMain(crossinline action: (YouTubePlayer) -> Unit) {
         main.post { player?.let(action) }

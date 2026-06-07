@@ -32,10 +32,25 @@ GET    /api/queue          -> JukeboxSnapshot
 POST   /api/queue          {url} -> Song            (any logged-in user)
 DELETE /api/queue/{id}                              (admin, or the user who added it)
 POST   /api/queue/reorder  {songId, targetIndex}    (admin, or owner)
-POST   /api/player/play|pause|skip                  (admin only)
-POST   /api/player/volume  {volume}                 (admin only)
+POST   /api/queue/{id}/play                          (tap-to-play; jump cursor; any user)
+POST   /api/player/play|pause|skip|previous          (any logged-in user)
+POST   /api/player/seek    {seconds}                 (any user)
+POST   /api/player/volume  {volume}                  (any user)
+POST   /api/player/shuffle {shuffle}                 (any user)
+POST   /api/player/repeat  {repeat: OFF|ALL|ONE}     (any user)
+POST   /api/player/clear                             (any user)
+GET    /api/playlists                                -> [{id,name,count}]
+POST   /api/playlists      {name}                    -> Playlist
+POST   /api/playlists/save-queue {name}              -> Playlist (snapshot of the queue)
+GET    /api/playlists/{id}                           -> Playlist (with songs)
+DELETE /api/playlists/{id}
+POST   /api/playlists/{id}/songs {url}               -> Playlist
+DELETE /api/playlists/{id}/songs/{videoId}
+POST   /api/playlists/{id}/enqueue                   -> AddResult (load into queue)
 GET    /ws                 -> pushes LiveState on every change   (auth required)
 ```
+
+Model note: the queue is a **persistent playlist with a cursor** — `Snapshot{tracks[], currentIndex, status, position, duration, volume, shuffle, repeat}`. Songs are never auto-removed; advancing/previous/jump move the cursor. Repeat-one is realized by the player looping the current file (Go: mpv `loop-file`; Android: re-load on ENDED) so the queue doesn't advance. Playlists persist to a JSON file on desktop (`playlist.Store`), in-memory on Android.
 
 WebSocket pushes `LiveState = { snapshot, users }`. REST `/api/queue` returns the bare snapshot
 (the socket fills in presence). Keep these consistent across backends.

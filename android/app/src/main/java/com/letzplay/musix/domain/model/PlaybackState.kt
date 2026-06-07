@@ -6,6 +6,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class PlaybackStatus { IDLE, BUFFERING, PLAYING, PAUSED, ENDED }
 
+/** What happens at the end of a track. */
+@Serializable
+enum class RepeatMode { OFF, ALL, ONE }
+
 /**
  * A full, serializable snapshot of the jukebox. The model is a persistent playlist with a moving
  * cursor — NOT a consumed queue: [tracks] keeps every added song (played, current, upcoming) and
@@ -23,6 +27,8 @@ data class JukeboxSnapshot(
     val positionSeconds: Float = 0f,
     val durationSeconds: Float = 0f,
     val volume: Int = 100,
+    val shuffle: Boolean = false,
+    val repeat: RepeatMode = RepeatMode.OFF,
 ) {
     /** The currently-playing track, or null when [currentIndex] is out of range. */
     val current: Song? get() = tracks.getOrNull(currentIndex)

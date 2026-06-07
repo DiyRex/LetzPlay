@@ -20,6 +20,7 @@ func StartCoordinator(ctx context.Context, q *domain.Queue, mpv *Mpv, pf *Prefet
 	go func() {
 		defer unsubscribe()
 		lastLoaded := ""
+		lastLoop := false
 		for {
 			select {
 			case <-ctx.Done():
@@ -45,6 +46,12 @@ func StartCoordinator(ctx context.Context, q *domain.Queue, mpv *Mpv, pf *Prefet
 				}
 				if current == "" {
 					lastLoaded = ""
+				}
+
+				// Keep mpv's loop-file in sync with repeat-one (mpv loops the file itself).
+				if loop := snap.Repeat == domain.RepeatOne; loop != lastLoop {
+					mpv.SetLoop(loop)
+					lastLoop = loop
 				}
 
 				// Resolve the next track ahead of time so the upcoming transition is smooth.

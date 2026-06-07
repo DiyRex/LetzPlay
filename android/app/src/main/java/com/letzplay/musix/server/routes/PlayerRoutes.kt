@@ -2,6 +2,9 @@ package com.letzplay.musix.server.routes
 
 import com.letzplay.musix.domain.player.PlaybackController
 import com.letzplay.musix.domain.queue.MusicQueue
+import com.letzplay.musix.server.dto.RepeatRequest
+import com.letzplay.musix.server.dto.SeekRequest
+import com.letzplay.musix.server.dto.ShuffleRequest
 import com.letzplay.musix.server.dto.VolumeRequest
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
@@ -45,6 +48,27 @@ fun Route.playerRoutes(
         val request = call.receive<VolumeRequest>()
         player.setVolume(request.volume)
         queue.setVolume(request.volume)
+        call.respond(HttpStatusCode.OK)
+    }
+
+    post("/seek") {
+        val request = call.receive<SeekRequest>()
+        player.seekTo(request.seconds)
+        call.respond(HttpStatusCode.OK)
+    }
+
+    post("/shuffle") {
+        queue.setShuffle(call.receive<ShuffleRequest>().shuffle)
+        call.respond(HttpStatusCode.OK)
+    }
+
+    post("/repeat") {
+        queue.setRepeat(call.receive<RepeatRequest>().repeat)
+        call.respond(HttpStatusCode.OK)
+    }
+
+    post("/clear") {
+        queue.clear()
         call.respond(HttpStatusCode.OK)
     }
 }

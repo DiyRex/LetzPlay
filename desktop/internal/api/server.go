@@ -16,6 +16,7 @@ import (
 
 	"github.com/DiyRex/LetzPlay/desktop/internal/auth"
 	"github.com/DiyRex/LetzPlay/desktop/internal/domain"
+	"github.com/DiyRex/LetzPlay/desktop/internal/playlist"
 	"github.com/DiyRex/LetzPlay/desktop/internal/youtube"
 )
 
@@ -26,9 +27,10 @@ type Server struct {
 	player   domain.Player
 	auth     *auth.Service
 	sessions *auth.SessionManager
-	meta     *youtube.MetadataClient
-	hub      *Hub
-	assets   fs.FS
+	meta      *youtube.MetadataClient
+	hub       *Hub
+	assets    fs.FS
+	playlists *playlist.Store
 }
 
 // NewServer builds the server. `assets` is the SPA filesystem (the embedded web/dist).
@@ -39,15 +41,17 @@ func NewServer(
 	sessions *auth.SessionManager,
 	hub *Hub,
 	assets fs.FS,
+	playlists *playlist.Store,
 ) *Server {
 	return &Server{
-		queue:    queue,
-		player:   player,
-		auth:     authService,
-		sessions: sessions,
-		meta:     youtube.NewMetadataClient(),
-		hub:      hub,
-		assets:   assets,
+		queue:     queue,
+		player:    player,
+		auth:      authService,
+		sessions:  sessions,
+		meta:      youtube.NewMetadataClient(),
+		hub:       hub,
+		assets:    assets,
+		playlists: playlists,
 	}
 }
 
@@ -72,7 +76,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/player/pause", s.protected(s.handlePause))
 	mux.HandleFunc("POST /api/player/skip", s.protected(s.handleSkip))
 	mux.HandleFunc("POST /api/player/previous", s.protected(s.handlePrevious))
+	mux.HandleFunc("POST /api/player/seek", s.protected(s.handleSeek))
 	mux.HandleFunc("POST /api/player/volume", s.protected(s.handleVolume))
+	mux.HandleFunc("POST /api/player/shuffle", s.protected(s.handleShuffle))
+	mux.HandleFunc("POST /api/player/repeat", s.protected(s.handleRepeat))
+	mux.HandleFunc("POST /api/player/clear", s.protected(s.handleClear))
+
+	mux.HandleFunc("GET /api/playlists", s.protected(s.handleListPlaylists))
+	mux.HandleFunc("POST /api/playlists", s.protected(s.handleCreatePlaylist))
+	mux.HandleFunc("POST /api/playlists/save-queue", s.protected(s.handleSaveQueueAsPlaylist))
+	mux.HandleFunc("GET /api/playlists/{id}", s.protected(s.handleGetPlaylist))
+	mux.HandleFunc("DELETE /api/playlists/{id}", s.protected(s.handleDeletePlaylist))
+	mux.HandleFunc("POST /api/playlists/{id}/songs", s.protected(s.handleAddPlaylistSong))
+	mux.HandleFunc("DELETE /api/playlists/{id}/songs/{videoId}", s.protected(s.handleRemovePlaylistSong))
+	mux.HandleFunc("POST /api/playlists/{id}/enqueue", s.protected(s.handleEnqueuePlaylist))
 
 	mux.HandleFunc("GET /ws", s.protected(s.handleWS))
 
@@ -263,6 +280,46 @@ func (s *Server) handleVolume(w http.ResponseWriter, r *http.Request, _ auth.Ses
 	}
 	s.player.SetVolume(req.Volume)
 	s.queue.SetVolume(req.Volume)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleSeek(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	var req seekRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "Malformed request")
+		return
+	}
+	s.player.Seek(req.Seconds)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleShuffle(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	var req shuffleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "Malformed request")
+		return
+	}
+	s.queue.SetShuffle(req.Shuffle)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleRepeat(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	var req repeatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "Malformed request")
+		return
+	}
+	switch req.Repeat {
+	case domain.RepeatOff, domain.RepeatAll, domain.RepeatOne:
+		s.queue.SetRepeat(req.Repeat)
+		w.WriteHeader(http.StatusOK)
+	default:
+		writeErr(w, http.StatusBadRequest, "Invalid repeat mode")
+	}
+}
+
+func (s *Server) handleClear(w http.ResponseWriter, _ *http.Request, _ auth.Session) {
+	s.queue.Clear()
 	w.WriteHeader(http.StatusOK)
 }
 

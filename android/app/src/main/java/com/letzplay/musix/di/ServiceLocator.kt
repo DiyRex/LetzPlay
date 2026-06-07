@@ -27,6 +27,8 @@ object ServiceLocator {
         private set
     lateinit var playerController: YouTubePlayerController
         private set
+    lateinit var playlistStore: com.letzplay.musix.server.playlist.PlaylistStore
+        private set
 
     val metadataClient: YouTubeMetadataClient by lazy { YouTubeMetadataClient() }
 
@@ -35,6 +37,7 @@ object ServiceLocator {
         settings = AppSettings(context.applicationContext)
         queue = MusicQueue()
         authService = AuthService(settings)
+        playlistStore = com.letzplay.musix.server.playlist.PlaylistStore()
         // Player callbacks are wired straight into the queue: status/progress in, auto-advance on end.
         playerController = YouTubePlayerController(
             onStatusChanged = queue::onStatusChanged,

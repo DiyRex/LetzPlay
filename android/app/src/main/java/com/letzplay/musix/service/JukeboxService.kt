@@ -55,6 +55,7 @@ class JukeboxService : Service() {
             queue = ServiceLocator.queue,
             player = ServiceLocator.playerController,
             assets = assets,
+            playlistStore = ServiceLocator.playlistStore,
             metadataClient = ServiceLocator.metadataClient,
         ).also { it.start() }
     }

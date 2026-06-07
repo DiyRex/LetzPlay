@@ -10,6 +10,7 @@ import com.letzplay.musix.server.auth.UserSession
 import com.letzplay.musix.server.dto.ErrorResponse
 import com.letzplay.musix.server.routes.authRoutes
 import com.letzplay.musix.server.routes.playerRoutes
+import com.letzplay.musix.server.routes.playlistRoutes
 import com.letzplay.musix.server.routes.queueRoutes
 import com.letzplay.musix.server.routes.staticWebRoutes
 import com.letzplay.musix.server.ws.QueueBroadcaster
@@ -52,6 +53,7 @@ class WebRemoteServer(
     private val queue: MusicQueue,
     private val player: PlaybackController,
     private val assets: AssetManager,
+    private val playlistStore: com.letzplay.musix.server.playlist.PlaylistStore,
     private val metadataClient: YouTubeMetadataClient = YouTubeMetadataClient(),
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
@@ -105,6 +107,13 @@ class WebRemoteServer(
                         newId = { UUID.randomUUID().toString() },
                     )
                     playerRoutes(queue, player)
+                    playlistRoutes(
+                        store = playlistStore,
+                        queue = queue,
+                        metadataClient = metadataClient,
+                        nowMillis = clock,
+                        newId = { UUID.randomUUID().toString() },
+                    )
                     webSocket("/ws") {
                         val user = call.principal<UserSession>()!!
                         broadcaster.handle(this, user)

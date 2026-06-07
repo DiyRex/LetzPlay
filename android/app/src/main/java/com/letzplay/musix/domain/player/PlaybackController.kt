@@ -11,4 +11,7 @@ interface PlaybackController {
     fun pause()
     fun seekTo(seconds: Float)
     fun setVolume(percent: Int)
+
+    /** When true, loop the current track instead of advancing (used for repeat-one). */
+    fun setLoop(loop: Boolean)
 }

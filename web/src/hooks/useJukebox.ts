@@ -9,6 +9,8 @@ const EMPTY_SNAPSHOT: JukeboxSnapshot = {
   positionSeconds: 0,
   durationSeconds: 0,
   volume: 100,
+  shuffle: false,
+  repeat: "OFF",
 }
 
 /**

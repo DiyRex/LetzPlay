@@ -22,6 +22,18 @@ type volumeRequest struct {
 	Volume int `json:"volume"`
 }
 
+type seekRequest struct {
+	Seconds float64 `json:"seconds"`
+}
+
+type shuffleRequest struct {
+	Shuffle bool `json:"shuffle"`
+}
+
+type repeatRequest struct {
+	Repeat domain.RepeatMode `json:"repeat"`
+}
+
 type sessionResponse struct {
 	Username string      `json:"username"`
 	Role     domain.Role `json:"role"`

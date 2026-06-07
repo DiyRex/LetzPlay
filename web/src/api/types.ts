@@ -5,6 +5,8 @@ export type Role = "GUEST" | "ADMIN"
 
 export type PlaybackStatus = "IDLE" | "BUFFERING" | "PLAYING" | "PAUSED" | "ENDED"
 
+export type RepeatMode = "OFF" | "ALL" | "ONE"
+
 export interface Song {
   id: string
   videoId: string
@@ -25,6 +27,30 @@ export interface JukeboxSnapshot {
   positionSeconds: number
   durationSeconds: number
   volume: number
+  shuffle: boolean
+  repeat: RepeatMode
+}
+
+/** A song stored in a saved playlist (lighter than a queue Song). */
+export interface PlaylistSong {
+  videoId: string
+  title: string
+  thumbnailUrl?: string
+}
+
+/** List-view form of a playlist. */
+export interface PlaylistSummary {
+  id: string
+  name: string
+  count: number
+}
+
+/** A full saved playlist with its songs. */
+export interface Playlist {
+  id: string
+  name: string
+  songs: PlaylistSong[]
+  updatedAtMs: number
 }
 
 export interface Session {
