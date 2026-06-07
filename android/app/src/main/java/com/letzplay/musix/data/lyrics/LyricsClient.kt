@@ -35,28 +35,62 @@ class LyricsClient(
         return result
     }
 
+    /**
+     * Tries several lrclib queries (structured artist/track, broad keyword, track-only, and a
+     * latin-only variant for mixed-script titles) and returns the first synced result, falling
+     * back to any plain lyrics. The extra attempts greatly improve non-English coverage.
+     */
     private suspend fun fetch(title: String): Lyrics {
-        val response = client.get(SEARCH_URL) {
-            parameter("q", cleanTitle(title))
-            header("User-Agent", "LetzPlayMusix (https://github.com/DiyRex/LetzPlay)")
+        val cleaned = cleanTitle(title)
+        val (artist, track) = splitArtistTrack(cleaned)
+        val attempts = mutableListOf<Map<String, String>>()
+        if (artist.isNotEmpty() && track.isNotEmpty()) {
+            attempts.add(mapOf("track_name" to track, "artist_name" to artist))
+            attempts.add(mapOf("track_name" to artist, "artist_name" to track))
         }
-        if (!response.status.isSuccess()) return Lyrics()
+        attempts.add(mapOf("q" to cleaned))
+        if (track.isNotEmpty() && track != cleaned) attempts.add(mapOf("q" to track))
+        asciiOnly(cleaned).takeIf { it.length >= 3 && it != cleaned }?.let { attempts.add(mapOf("q" to it)) }
 
-        val hits = parser.parseToJsonElement(response.bodyAsText()).jsonArray
-        for (hit in hits) {
-            val synced = hit.jsonObject["syncedLyrics"]?.jsonPrimitive?.contentOrNull()
-            val lines = parseLrc(synced)
-            if (lines.isNotEmpty()) {
-                val plain = hit.jsonObject["plainLyrics"]?.jsonPrimitive?.contentOrNull() ?: ""
-                return Lyrics(found = true, synced = lines, plain = plain)
+        var fallbackPlain = ""
+        for (params in attempts.distinct()) {
+            for (hit in search(params)) {
+                val lines = parseLrc(hit.jsonObject["syncedLyrics"]?.jsonPrimitive?.contentOrNull())
+                if (lines.isNotEmpty()) {
+                    val plain = hit.jsonObject["plainLyrics"]?.jsonPrimitive?.contentOrNull() ?: ""
+                    return Lyrics(found = true, synced = lines, plain = plain)
+                }
+                if (fallbackPlain.isEmpty()) {
+                    hit.jsonObject["plainLyrics"]?.jsonPrimitive?.contentOrNull()
+                        ?.takeIf { it.isNotBlank() }?.let { fallbackPlain = it }
+                }
             }
         }
-        for (hit in hits) {
-            val plain = hit.jsonObject["plainLyrics"]?.jsonPrimitive?.contentOrNull()
-            if (!plain.isNullOrBlank()) return Lyrics(found = true, plain = plain)
-        }
-        return Lyrics()
+        return if (fallbackPlain.isNotEmpty()) Lyrics(found = true, plain = fallbackPlain) else Lyrics()
     }
+
+    private suspend fun search(params: Map<String, String>) = runCatching {
+        val response = client.get(SEARCH_URL) {
+            params.forEach { (k, v) -> parameter(k, v) }
+            header("User-Agent", "LetzPlayMusix (https://github.com/DiyRex/LetzPlay)")
+        }
+        if (!response.status.isSuccess()) emptyList()
+        else parser.parseToJsonElement(response.bodyAsText()).jsonArray.toList()
+    }.getOrDefault(emptyList())
+
+    private fun splitArtistTrack(s: String): Pair<String, String> {
+        for (sep in listOf(" - ", " – ", " — ")) {
+            val i = s.indexOf(sep)
+            if (i > 0) return s.substring(0, i).trim() to s.substring(i + sep.length).trim()
+        }
+        return "" to ""
+    }
+
+    private fun asciiOnly(s: String): String =
+        s.map { if (it.code < 128 && (it.isLetterOrDigit() || it == ' ' || it == '-' || it == '\'')) it else ' ' }
+            .joinToString("")
+            .replace(Regex("\\s+"), " ")
+            .trim()
 
     private fun parseLrc(lrc: String?): List<LyricsLine> {
         if (lrc.isNullOrBlank()) return emptyList()
@@ -76,12 +110,22 @@ class LyricsClient(
         return lines
     }
 
-    private fun cleanTitle(title: String): String = NOISE.replace(title, "").trim()
+    private fun cleanTitle(title: String): String {
+        var s = title
+        val pipe = s.indexOf('|')
+        if (pipe > 0) s = s.substring(0, pipe)
+        s = BRACKET_NOISE.replace(s, "")
+        s = TRAILING_NOISE.replace(s, "")
+        return s.trim()
+    }
 
     private companion object {
         const val SEARCH_URL = "https://lrclib.net/api/search"
         val LRC_LINE = Regex("""\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?]""")
-        val NOISE = Regex("""(?i)\s*[(\[][^)\]]*(official|video|audio|lyrics?|remaster|4k|hd|mv)[^)\]]*[)\]]""")
+        val BRACKET_NOISE =
+            Regex("""(?i)\s*[(\[][^)\]]*(official|video|audio|lyrics?|remaster|4k|hd|mv|cover|visualizer|full song)[^)\]]*[)\]]""")
+        val TRAILING_NOISE =
+            Regex("""(?i)\s*[-–—|]\s*(official\s+\w+|lyric\s+video|music\s+video|full\s+song|audio|visualizer|hd|4k)\s*$""")
 
         fun defaultClient(): HttpClient = HttpClient {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
