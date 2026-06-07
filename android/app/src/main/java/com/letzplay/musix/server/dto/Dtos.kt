@@ -75,4 +75,31 @@ data class ConnectedUser(val username: String, val role: UserRole)
  * Go server's `LiveState` byte-for-byte so one React remote drives both backends.
  */
 @Serializable
-data class LiveState(val snapshot: JukeboxSnapshot, val users: List<ConnectedUser>)
+data class LiveState(
+    val snapshot: JukeboxSnapshot,
+    val users: List<ConnectedUser>,
+    val skipVotes: Int = 0,
+    val skipNeeded: Int = 1,
+    val sleepAtMs: Long = 0,
+)
+
+@Serializable
+data class SleepRequest(val minutes: Int)
+
+@Serializable
+data class AutoplayRequest(val autoplay: Boolean)
+
+@Serializable
+data class LockRequest(val locked: Boolean)
+
+@Serializable
+data class PasswordRequest(val admin: String = "", val guest: String = "")
+
+@Serializable
+data class SearchResult(val videoId: String, val title: String, val channel: String, val thumbnailUrl: String)
+
+@Serializable
+data class LyricsLine(val timeMs: Int, val text: String)
+
+@Serializable
+data class Lyrics(val found: Boolean = false, val synced: List<LyricsLine> = emptyList(), val plain: String = "")

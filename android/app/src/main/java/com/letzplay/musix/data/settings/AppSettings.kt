@@ -33,6 +33,11 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_GUEST_REQUIRED, true)
         set(value) = prefs.edit().putBoolean(KEY_GUEST_REQUIRED, value).apply()
 
+    /** Max songs a guest may have queued at once (0 = unlimited). Admins are exempt. */
+    var maxPerUser: Int
+        get() = prefs.getInt(KEY_MAX_PER_USER, 0)
+        set(value) = prefs.edit().putInt(KEY_MAX_PER_USER, value).apply()
+
     fun setAdminPassword(plain: String) =
         prefs.edit().putString(KEY_ADMIN_HASH, PasswordHasher.hash(plain)).apply()
 
@@ -50,6 +55,7 @@ class AppSettings(context: Context) {
         const val KEY_ADMIN_HASH = "admin_hash"
         const val KEY_GUEST_HASH = "guest_hash"
         const val KEY_GUEST_REQUIRED = "guest_required"
+        const val KEY_MAX_PER_USER = "max_per_user"
 
         const val DEFAULT_PORT = 8080
         // Documented defaults — the owner is told to change these on first run.

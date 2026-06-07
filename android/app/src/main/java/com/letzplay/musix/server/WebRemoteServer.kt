@@ -9,6 +9,8 @@ import com.letzplay.musix.server.auth.AuthService
 import com.letzplay.musix.server.auth.UserSession
 import com.letzplay.musix.server.dto.ErrorResponse
 import com.letzplay.musix.server.routes.authRoutes
+import com.letzplay.musix.server.routes.adminRoutes
+import com.letzplay.musix.server.routes.featureRoutes
 import com.letzplay.musix.server.routes.playerRoutes
 import com.letzplay.musix.server.routes.playlistRoutes
 import com.letzplay.musix.server.routes.queueRoutes
@@ -17,6 +19,7 @@ import com.letzplay.musix.server.ws.QueueBroadcaster
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
+import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.principal
 import io.ktor.server.auth.session
 import io.ktor.server.cio.CIO
@@ -35,6 +38,7 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.security.SecureRandom
 import java.util.UUID
@@ -60,12 +64,30 @@ class WebRemoteServer(
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val scope = CoroutineScope(SupervisorJob())
     private val broadcaster = QueueBroadcaster(queue, scope, json)
+    private val lyricsClient = com.letzplay.musix.data.lyrics.LyricsClient()
 
     // Fresh signing key each launch: sessions don't need to survive restarts, and a per-launch
     // secret means a stolen cookie is useless after the box reboots.
     private val sessionKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
 
     private var engine: ApplicationEngine? = null
+    private var sleepJob: kotlinx.coroutines.Job? = null
+
+    /** Schedules (minutes>0) or cancels (0) the server-side auto-pause; mirrors the desktop sleep timer. */
+    private fun scheduleSleep(minutes: Int) {
+        sleepJob?.cancel()
+        if (minutes <= 0) {
+            broadcaster.setSleepAt(0)
+            return
+        }
+        val durationMs = minutes * 60_000L
+        broadcaster.setSleepAt(System.currentTimeMillis() + durationMs)
+        sleepJob = scope.launch {
+            kotlinx.coroutines.delay(durationMs)
+            player.pause()
+            broadcaster.setSleepAt(0)
+        }
+    }
 
     fun start() {
         if (engine != null) return
@@ -99,14 +121,17 @@ class WebRemoteServer(
             routing {
                 authRoutes(authService)
 
-                io.ktor.server.auth.authenticate(AUTH_SESSION) {
+                authenticate(AUTH_SESSION) {
                     queueRoutes(
                         queue = queue,
                         metadataClient = metadataClient,
                         nowMillis = clock,
                         newId = { UUID.randomUUID().toString() },
+                        maxPerUser = { settings.maxPerUser },
                     )
-                    playerRoutes(queue, player)
+                    playerRoutes(queue, player, broadcaster) { minutes -> scheduleSleep(minutes) }
+                    featureRoutes(queue, lyricsClient)
+                    adminRoutes(queue, settings)
                     playlistRoutes(
                         store = playlistStore,
                         queue = queue,

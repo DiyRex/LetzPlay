@@ -31,10 +31,39 @@ class QueueBroadcaster(
 ) {
     private val sessions = ConcurrentHashMap<DefaultWebSocketSession, ConnectedUser>()
 
+    // Skip-vote + sleep-timer state (transport concerns; not in the queue).
+    private val voteLock = Any()
+    private var voteKey: String = ""
+    private val voters = mutableSetOf<String>()
+
+    @Volatile
+    private var sleepAtMs: Long = 0
+
     init {
         queue.snapshot
             .onEach { snapshot -> broadcast(snapshot) }
             .launchIn(scope)
+    }
+
+    /** Records a vote to skip [videoId]; votes reset when the track changes. */
+    fun voteSkip(videoId: String, username: String): Triple<Int, Int, Boolean> {
+        val votes = synchronized(voteLock) {
+            if (voteKey != videoId) {
+                voteKey = videoId
+                voters.clear()
+            }
+            voters.add(username)
+            voters.size
+        }
+        val needed = skipThreshold(distinctUsers().size)
+        return Triple(votes, needed, votes >= needed)
+    }
+
+    fun resetVotes() = synchronized(voteLock) { voteKey = ""; voters.clear() }
+
+    fun setSleepAt(ms: Long) {
+        sleepAtMs = ms
+        broadcast(queue.snapshot.value)
     }
 
     /** Registers the authenticated user as present, streams updates, and cleans up on disconnect. */
@@ -61,14 +90,29 @@ class QueueBroadcaster(
         }
     }
 
-    /** Deduplicates presence by username (admin wins) and serializes the full [LiveState]. */
-    private fun encode(snapshot: JukeboxSnapshot): String {
-        val users = sessions.values
+    private fun distinctUsers(): List<ConnectedUser> =
+        sessions.values
             .groupBy { it.username }
             .map { (name, entries) ->
                 ConnectedUser(name, entries.firstOrNull { it.role.isAdmin }?.role ?: entries.first().role)
             }
             .sortedBy { it.username }
-        return json.encodeToString(LiveState.serializer(), LiveState(snapshot, users))
+
+    /** Serializes the full [LiveState]: presence + skip votes + sleep timer. */
+    private fun encode(snapshot: JukeboxSnapshot): String {
+        val users = distinctUsers()
+        val currentVideoId = snapshot.current?.videoId
+        val votes = synchronized(voteLock) { if (voteKey == currentVideoId) voters.size else 0 }
+        val state = LiveState(
+            snapshot = snapshot,
+            users = users,
+            skipVotes = votes,
+            skipNeeded = skipThreshold(users.size),
+            sleepAtMs = sleepAtMs,
+        )
+        return json.encodeToString(LiveState.serializer(), state)
     }
 }
+
+/** A simple majority of connected users (at least 1). */
+private fun skipThreshold(users: Int): Int = if (users < 1) 1 else users / 2 + 1

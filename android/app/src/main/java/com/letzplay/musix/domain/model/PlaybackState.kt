@@ -29,6 +29,8 @@ data class JukeboxSnapshot(
     val volume: Int = 100,
     val shuffle: Boolean = false,
     val repeat: RepeatMode = RepeatMode.OFF,
+    val locked: Boolean = false,
+    val autoplay: Boolean = false,
 ) {
     /** The currently-playing track, or null when [currentIndex] is out of range. */
     val current: Song? get() = tracks.getOrNull(currentIndex)

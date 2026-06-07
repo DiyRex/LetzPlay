@@ -120,6 +120,15 @@ class MusicQueue {
 
     fun setRepeat(mode: RepeatMode): Unit = mutate { it.copy(repeat = mode) }
 
+    fun setLocked(locked: Boolean): Unit = mutate { it.copy(locked = locked) }
+
+    fun setAutoplay(on: Boolean): Unit = mutate { it.copy(autoplay = on) }
+
+    /** Count of not-yet-played tracks a user has queued (for request limits). */
+    fun countByUser(username: String): Int = snapshot.value.let { s ->
+        s.tracks.filterIndexed { i, t -> i >= s.currentIndex && t.addedBy == username }.size
+    }
+
     private fun randomOtherIndex(n: Int, current: Int): Int {
         if (n <= 1) return 0
         val i = Random.nextInt(n - 1)

@@ -31,6 +31,7 @@ fun Route.queueRoutes(
     metadataClient: YouTubeMetadataClient,
     nowMillis: () -> Long,
     newId: () -> String,
+    maxPerUser: () -> Int = { 0 },
 ) = route("/api/queue") {
 
     get {
@@ -39,6 +40,21 @@ fun Route.queueRoutes(
 
     post {
         val user = call.principal<UserSession>()!!
+        // Admin queue lock and per-user request limits apply to guests only.
+        if (!user.role.isAdmin) {
+            if (queue.snapshot.value.locked) {
+                call.respond(HttpStatusCode.Forbidden, ErrorResponse("The host has locked the queue"))
+                return@post
+            }
+            val limit = maxPerUser()
+            if (limit > 0 && queue.countByUser(user.username) >= limit) {
+                call.respond(
+                    HttpStatusCode.TooManyRequests,
+                    ErrorResponse("You've reached your limit of $limit queued songs"),
+                )
+                return@post
+            }
+        }
         val request = call.receive<AddSongRequest>()
         val videoId = YouTubeUrlParser.extractVideoId(request.url)
         if (videoId == null) {

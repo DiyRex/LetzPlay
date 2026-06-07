@@ -47,7 +47,7 @@ class YouTubePlayerController(
             player = youTubePlayer
         }
 
-        override fun onStateChanged(youTubePlayer: YouTubePlayer, state: PlayerConstants.PlayerState) {
+        override fun onStateChange(youTubePlayer: YouTubePlayer, state: PlayerConstants.PlayerState) {
             when (state) {
                 PlayerConstants.PlayerState.PLAYING -> onStatusChanged(PlaybackStatus.PLAYING)
                 PlayerConstants.PlayerState.PAUSED -> onStatusChanged(PlaybackStatus.PAUSED)
