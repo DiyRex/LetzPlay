@@ -4,6 +4,36 @@ import { Check, Copy, Share2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 
+/**
+ * Copies text, falling back to a hidden-textarea + execCommand for insecure contexts — the
+ * Clipboard API is unavailable over plain http (LAN IPs), which is exactly how this app is served.
+ */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    /* fall through to legacy path */
+  }
+  try {
+    const ta = document.createElement("textarea")
+    ta.value = text
+    ta.style.position = "fixed"
+    ta.style.top = "0"
+    ta.style.opacity = "0"
+    document.body.appendChild(ta)
+    ta.focus()
+    ta.select()
+    const ok = document.execCommand("copy")
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}
+
 /** Header button that shows a QR + link so others can join the jukebox from their phone. */
 export function ShareButton() {
   const [open, setOpen] = useState(false)
@@ -21,12 +51,12 @@ export function ShareButton() {
   }
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url)
+    const ok = await copyText(url)
+    if (ok) {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
-    } catch {
-      toast.error("Couldn't copy")
+    } else {
+      toast.error("Couldn't copy — long-press the link to copy it")
     }
   }
 
@@ -46,11 +76,11 @@ export function ShareButton() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="flex w-full max-w-xs flex-col items-center gap-4 rounded-xl border bg-card p-6"
+            className="my-auto flex max-h-[90dvh] w-full max-w-xs flex-col items-center gap-4 overflow-y-auto rounded-xl border bg-card p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex w-full items-center justify-between">
@@ -59,8 +89,14 @@ export function ShareButton() {
                 <X className="size-4" />
               </Button>
             </div>
-            {qr && <img src={qr} alt="QR code to join" className="rounded-lg" />}
-            <p className="break-all text-center text-xs text-muted-foreground">{url}</p>
+            {qr && (
+              <img
+                src={qr}
+                alt="QR code to join"
+                className="h-auto w-full max-w-[15rem] shrink-0 rounded-lg bg-white p-2"
+              />
+            )}
+            <p className="w-full break-all text-center text-xs text-muted-foreground">{url}</p>
             <div className="flex w-full gap-2">
               <Button variant="outline" size="sm" className="flex-1" onClick={copy}>
                 {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
