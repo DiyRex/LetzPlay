@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Music2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
@@ -13,11 +13,33 @@ interface NowPlayingProps {
 export function NowPlaying({ snapshot }: NowPlayingProps) {
   const song = snapshot.tracks[snapshot.currentIndex] ?? null
   const duration = snapshot.durationSeconds
+  const seekable = !!song && duration > 0
 
-  // While the user drags the seek bar, hold a local value so incoming progress frames don't yank
-  // the thumb back. Released on commit (seek) — then live updates resume.
-  const [scrubbing, setScrubbing] = useState<number | null>(null)
-  const position = scrubbing ?? snapshot.positionSeconds
+  // Three position sources, in priority order:
+  //  - `scrub`:   live value while the user drags (follows the finger exactly)
+  //  - `pending`: value just released; held until the server's reported position catches up, so the
+  //               thumb doesn't snap back to the old spot during the ~1s seek round-trip
+  //  - otherwise: the live server position
+  const [scrub, setScrub] = useState<number | null>(null)
+  const [pending, setPending] = useState<number | null>(null)
+  const pendingTimer = useRef<ReturnType<typeof setTimeout>>()
+
+  const position = scrub ?? pending ?? snapshot.positionSeconds
+
+  // Release the held value once the server reports a position near where we seeked.
+  useEffect(() => {
+    if (pending !== null && Math.abs(snapshot.positionSeconds - pending) < 2.5) {
+      setPending(null)
+    }
+  }, [snapshot.positionSeconds, pending])
+
+  const commitSeek = (value: number) => {
+    setScrub(null)
+    setPending(value)
+    clearTimeout(pendingTimer.current)
+    pendingTimer.current = setTimeout(() => setPending(null), 4000) // safety release
+    void api.seek(value).catch(() => undefined)
+  }
 
   return (
     <Card className="overflow-hidden">
@@ -39,22 +61,21 @@ export function NowPlaying({ snapshot }: NowPlayingProps) {
           </div>
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5 pt-1">
           <Slider
-            value={[Math.min(position, duration || 0)]}
+            value={[Math.min(Math.max(position, 0), duration || 1)]}
             min={0}
             max={Math.max(duration, 1)}
             step={1}
-            disabled={!song || duration <= 0}
-            onValueChange={([v]) => setScrubbing(v)}
-            onValueCommit={([v]) => {
-              setScrubbing(null)
-              if (song && duration > 0) void api.seek(v).catch(() => undefined)
-            }}
+            disabled={!seekable}
+            onValueChange={([v]) => setScrub(v)}
+            onValueCommit={([v]) => (seekable ? commitSeek(v) : setScrub(null))}
             aria-label="Seek"
           />
           <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
-            <span>{formatTime(position)}</span>
+            <span className={scrub !== null ? "font-semibold text-primary" : undefined}>
+              {formatTime(position)}
+            </span>
             <span>{formatTime(duration)}</span>
           </div>
         </div>
