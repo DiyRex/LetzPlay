@@ -57,7 +57,15 @@ type Mpv struct {
 	loaded   bool
 	paused   bool
 	coreIdle bool
+
+	// Failure guard: if loads keep failing (e.g. an outdated yt-dlp can't extract many videos),
+	// auto-skip a few then STOP, instead of cascading through the whole list forever.
+	playedCurrent bool
+	loadFailures  int
 }
+
+// maxLoadFailures bounds consecutive failed loads before we stop auto-skipping.
+const maxLoadFailures = 3
 
 // NewMpv wires the player to the queue via callbacks (status in, progress in, auto-advance on end).
 func NewMpv(
@@ -301,16 +309,38 @@ func (m *Mpv) handleEvent(msg ipcMessage) {
 	switch msg.Event {
 	case "start-file":
 		m.loaded = true
+		m.playedCurrent = false
 		m.emitStatus()
+	case "playback-restart":
+		m.playedCurrent = true
+		m.loadFailures = 0
 	case "end-file":
 		m.loaded = false
-		// Advance only when a track finishes or errors — not on our own "replace" stop.
-		if msg.Reason == "eof" || msg.Reason == "error" {
-			m.onEnded()
-		}
+		m.handleEndFile(msg.Reason)
 	case "property-change":
 		m.handlePropertyChange(msg)
 	}
+}
+
+// handleEndFile decides whether to advance. A natural finish (eof), or an error after the track
+// actually played, advances normally. A *failed load* (error before any playback) auto-skips the
+// unplayable track — but only up to maxLoadFailures in a row, then it stops so a broken yt-dlp
+// (or a run of unavailable videos) can't send the queue switching endlessly.
+func (m *Mpv) handleEndFile(reason string) {
+	switch {
+	case reason == "eof" || (reason == "error" && m.playedCurrent):
+		m.loadFailures = 0
+		m.onEnded()
+	case reason == "error":
+		m.loadFailures++
+		if m.loadFailures <= maxLoadFailures {
+			m.onEnded() // auto-skip this unplayable track
+		} else {
+			m.loadFailures = 0
+			m.onStatus(domain.StatusIdle) // give up — stop the cascade
+		}
+	}
+	// "stop"/"redirect" (our own loadfile replace) → ignore.
 }
 
 func (m *Mpv) handlePropertyChange(msg ipcMessage) {
@@ -318,6 +348,10 @@ func (m *Mpv) handlePropertyChange(msg ipcMessage) {
 	case "time-pos":
 		var pos float64
 		if json.Unmarshal(msg.Data, &pos) == nil {
+			if pos > 0 {
+				m.playedCurrent = true
+				m.loadFailures = 0
+			}
 			m.onProgress(pos, m.duration)
 		}
 	case "duration":

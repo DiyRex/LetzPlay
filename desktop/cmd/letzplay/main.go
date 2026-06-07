@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -66,6 +67,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer mpv.Stop()
+	warnIfYtdlpStale()
 	prefetcher := player.NewPrefetcher()
 	player.StartCoordinator(ctx, queue, mpv, prefetcher)
 
@@ -121,6 +123,19 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)
+}
+
+// warnIfYtdlpStale prints the yt-dlp version and a gentle update hint. An outdated yt-dlp is the
+// most common reason videos fail to play (YouTube changes frequently break old versions), which
+// shows up as songs stuck buffering or the queue skipping through tracks.
+func warnIfYtdlpStale() {
+	out, err := exec.Command("yt-dlp", "--version").Output()
+	if err != nil {
+		return
+	}
+	version := strings.TrimSpace(string(out))
+	fmt.Printf("yt-dlp %s — if songs won't play or the queue keeps skipping, update it:\n", version)
+	fmt.Println("    yt-dlp -U     (or: brew upgrade yt-dlp / pipx upgrade yt-dlp)")
 }
 
 // randomSecret returns a 32-byte per-launch HMAC key for signing session cookies.
