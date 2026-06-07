@@ -18,6 +18,7 @@ const (
 	EnvGuestPassword = "LETZPLAY_GUEST_PASSWORD"
 	EnvOpen          = "LETZPLAY_OPEN"
 	EnvHeadless      = "LETZPLAY_HEADLESS"
+	EnvMaxPerUser    = "LETZPLAY_MAX_PER_USER"
 )
 
 // LoadDotEnv reads the first existing path (e.g. "desktop/.env") and sets any variable that is not

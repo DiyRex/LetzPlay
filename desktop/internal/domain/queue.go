@@ -175,6 +175,29 @@ func (q *Queue) SetRepeat(mode RepeatMode) {
 	q.mutate(func(cur Snapshot) Snapshot { cur.Repeat = mode; return cur })
 }
 
+// SetLocked toggles the admin queue lock (guests can't add while locked).
+func (q *Queue) SetLocked(locked bool) {
+	q.mutate(func(cur Snapshot) Snapshot { cur.Locked = locked; return cur })
+}
+
+// SetAutoplay toggles radio mode (auto-add a related track when the queue runs out).
+func (q *Queue) SetAutoplay(on bool) {
+	q.mutate(func(cur Snapshot) Snapshot { cur.Autoplay = on; return cur })
+}
+
+// CountByUser returns how many not-yet-played tracks a user has queued (for request limits).
+func (q *Queue) CountByUser(username string) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	count := 0
+	for i, t := range q.snap.Tracks {
+		if i >= q.snap.CurrentIndex && t.AddedBy == username {
+			count++
+		}
+	}
+	return count
+}
+
 // Clear empties the whole list and stops playback (volume/shuffle/repeat preserved).
 func (q *Queue) Clear() {
 	q.mutate(func(cur Snapshot) Snapshot {
@@ -231,6 +254,17 @@ func (q *Queue) PlayNow(songID string) bool {
 		return cur
 	})
 	return moved
+}
+
+// Restore loads a previously-persisted track list. Playback starts idle (the cursor is parked)
+// so the box doesn't blast audio on boot — users tap a song or press play to resume.
+func (q *Queue) Restore(tracks []Song) {
+	q.mutate(func(cur Snapshot) Snapshot {
+		cur.Tracks = tracks
+		cur.CurrentIndex = -1
+		cur.Status = StatusIdle
+		return cur
+	})
 }
 
 // OwnerOf returns who added a song, or "" if it isn't in the playlist.

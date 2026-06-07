@@ -1,7 +1,10 @@
 import { useState } from "react"
+import { AdminPanel } from "@/components/AdminPanel"
 import { BottomNav, type Tab } from "@/components/BottomNav"
 import { ConnectedUsers } from "@/components/ConnectedUsers"
+import { ExtraControls } from "@/components/ExtraControls"
 import { Header } from "@/components/Header"
+import { LyricsPanel } from "@/components/LyricsPanel"
 import { NowPlaying } from "@/components/NowPlaying"
 import { PlayerControls } from "@/components/PlayerControls"
 import { Separator } from "@/components/ui/separator"
@@ -15,10 +18,11 @@ interface RemotePageProps {
   onLogout: () => void
 }
 
-/** App shell: a sticky header, the active tab's content, and a bottom nav (player / songs / playlists). */
+/** App shell: sticky header, the active tab's content, and a bottom nav (player / songs / playlists). */
 export function RemotePage({ session, onLogout }: RemotePageProps) {
-  const { snapshot, users } = useJukebox(true)
+  const { snapshot, users, skipVotes, skipNeeded, sleepAtMs } = useJukebox(true)
   const [tab, setTab] = useState<Tab>("play")
+  const current = snapshot.tracks[snapshot.currentIndex] ?? null
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pb-24 pt-1">
@@ -31,6 +35,14 @@ export function RemotePage({ session, onLogout }: RemotePageProps) {
         <>
           <NowPlaying snapshot={snapshot} />
           <PlayerControls snapshot={snapshot} />
+          <ExtraControls
+            snapshot={snapshot}
+            skipVotes={skipVotes}
+            skipNeeded={skipNeeded}
+            sleepAtMs={sleepAtMs}
+          />
+          <LyricsPanel videoId={current?.videoId ?? null} positionSeconds={snapshot.positionSeconds} />
+          {session.role === "ADMIN" && <AdminPanel snapshot={snapshot} />}
           <ConnectedUsers users={users} me={session.username} />
         </>
       )}

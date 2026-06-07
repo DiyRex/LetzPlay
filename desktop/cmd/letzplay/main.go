@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -13,6 +14,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -25,6 +28,7 @@ import (
 	"github.com/DiyRex/LetzPlay/desktop/internal/playlist"
 	"github.com/DiyRex/LetzPlay/desktop/internal/tui"
 	"github.com/DiyRex/LetzPlay/desktop/internal/webui"
+	"github.com/DiyRex/LetzPlay/desktop/internal/youtube"
 )
 
 func main() {
@@ -42,6 +46,8 @@ func main() {
 		"allow guests to join with any password (env "+config.EnvOpen+")")
 	headless := flag.Bool("headless", config.Bool(config.EnvHeadless, false),
 		"run without the interactive TUI, for servers with no terminal (env "+config.EnvHeadless+")")
+	maxPerUser := flag.Int("max-per-user", config.Int(config.EnvMaxPerUser, 0),
+		"max queued songs per guest, 0 = unlimited (env "+config.EnvMaxPerUser+")")
 	flag.Parse()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -79,7 +85,11 @@ func main() {
 
 	playlists := playlist.NewStore(playlist.DefaultPath())
 
-	server := api.NewServer(queue, mpv, authService, sessions, hub, assets, playlists)
+	// Persist the queue across restarts and run autoplay radio when it empties (desktop-only).
+	startQueuePersistence(ctx, queue)
+	startRadio(ctx, queue)
+
+	server := api.NewServer(queue, mpv, authService, sessions, hub, assets, playlists, *maxPerUser)
 	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", *port), Handler: server.Handler()}
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -134,4 +144,120 @@ func lanURL(port int) string {
 		}
 	}
 	return fmt.Sprintf("http://localhost:%d", port)
+}
+
+func queuePath() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		dir = os.TempDir()
+	}
+	return filepath.Join(dir, "letzplay", "queue.json")
+}
+
+// startQueuePersistence restores the saved track list on boot and saves it whenever it changes
+// (only on list changes, not on every progress tick).
+func startQueuePersistence(ctx context.Context, q *domain.Queue) {
+	path := queuePath()
+	if data, err := os.ReadFile(path); err == nil {
+		var tracks []domain.Song
+		if json.Unmarshal(data, &tracks) == nil && len(tracks) > 0 {
+			q.Restore(tracks)
+		}
+	}
+
+	updates, unsubscribe := q.Subscribe()
+	go func() {
+		defer unsubscribe()
+		lastKey := ""
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case snap, ok := <-updates:
+				if !ok {
+					return
+				}
+				key := trackKey(snap.Tracks)
+				if key == lastKey {
+					continue // list unchanged (e.g. just a progress update) — skip the write
+				}
+				lastKey = key
+				if data, err := json.Marshal(snap.Tracks); err == nil {
+					_ = os.MkdirAll(filepath.Dir(path), 0o755)
+					_ = os.WriteFile(path, data, 0o644)
+				}
+			}
+		}
+	}()
+}
+
+func trackKey(tracks []domain.Song) string {
+	ids := make([]string, len(tracks))
+	for i, t := range tracks {
+		ids[i] = t.ID
+	}
+	return strings.Join(ids, ",")
+}
+
+// startRadio watches for the queue running dry while autoplay is on, then appends related tracks
+// (YouTube's "mix") so music keeps going. Desktop-only (uses yt-dlp).
+func startRadio(ctx context.Context, q *domain.Queue) {
+	updates, unsubscribe := q.Subscribe()
+	go func() {
+		defer unsubscribe()
+		wasIdle := true
+		fetching := false
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case snap, ok := <-updates:
+				if !ok {
+					return
+				}
+				idle := snap.Status == domain.StatusIdle
+				justEnded := idle && !wasIdle
+				wasIdle = idle
+
+				seed := snap.Current()
+				if !justEnded || !snap.Autoplay || fetching || seed == nil {
+					continue
+				}
+				fetching = true
+				seedID := seed.VideoID
+				existing := map[string]bool{}
+				for _, t := range snap.Tracks {
+					existing[t.VideoID] = true
+				}
+				go func() {
+					defer func() { fetching = false }()
+					mix, err := youtube.RadioMix(ctx, seedID, 5)
+					if err != nil {
+						return
+					}
+					for _, e := range mix {
+						if existing[e.VideoID] {
+							continue
+						}
+						q.Add(domain.Song{
+							ID:             radioID(),
+							VideoID:        e.VideoID,
+							Title:          e.Title,
+							ThumbnailURL:   "https://i.ytimg.com/vi/" + e.VideoID + "/hqdefault.jpg",
+							AddedBy:        "Radio",
+							AddedAtEpochMs: time.Now().UnixMilli(),
+						})
+					}
+				}()
+			}
+		}
+	}()
+}
+
+func radioID() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("radio-%d", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("%x", b)
 }

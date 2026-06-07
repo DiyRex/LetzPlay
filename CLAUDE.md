@@ -39,6 +39,13 @@ POST   /api/player/volume  {volume}                  (any user)
 POST   /api/player/shuffle {shuffle}                 (any user)
 POST   /api/player/repeat  {repeat: OFF|ALL|ONE}     (any user)
 POST   /api/player/clear                             (any user)
+POST   /api/player/voteskip                          (majority of connected users -> skip)
+POST   /api/player/sleep   {minutes}                 (0 cancels; server auto-pauses)
+POST   /api/player/autoplay {autoplay}               (radio: auto-add related when empty; desktop)
+GET    /api/search?q=                                -> [SearchResult]  (yt-dlp; empty on Android)
+GET    /api/lyrics?videoId=                          -> {found,synced[],plain}  (lrclib, keyless)
+POST   /api/admin/lock     {locked}                  (admin; guests can't add while locked)
+POST   /api/admin/password {admin?,guest?}           (admin; runtime, in-memory)
 GET    /api/playlists                                -> [{id,name,count}]
 POST   /api/playlists      {name}                    -> Playlist
 POST   /api/playlists/save-queue {name}              -> Playlist (snapshot of the queue)

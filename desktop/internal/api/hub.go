@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,6 +28,11 @@ type Hub struct {
 	clients    map[*client]bool
 	upgrader   websocket.Upgrader
 	users      atomic.Value // []ConnectedUser, for the TUI to read lock-free
+
+	votesMu sync.Mutex
+	voteKey string          // videoId the current votes apply to
+	voters  map[string]bool // usernames that voted to skip
+	sleepAt atomic.Int64    // epoch ms to auto-pause (0 = off)
 }
 
 type client struct {
@@ -44,9 +50,55 @@ func NewHub(queue *domain.Queue) *Hub {
 		clients:    make(map[*client]bool),
 		// Same-origin only: the page is served by this very server.
 		upgrader: websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }},
+		voters:   make(map[string]bool),
 	}
 	h.users.Store([]ConnectedUser{})
 	return h
+}
+
+// VoteSkip records a vote to skip videoID by user. Votes reset automatically when the track
+// changes. Returns the current vote count, the number needed (majority of connected users), and
+// whether the threshold was reached.
+func (h *Hub) VoteSkip(videoID, user string) (votes, needed int, reached bool) {
+	h.votesMu.Lock()
+	if h.voteKey != videoID {
+		h.voteKey = videoID
+		h.voters = make(map[string]bool)
+	}
+	h.voters[user] = true
+	votes = len(h.voters)
+	h.votesMu.Unlock()
+
+	needed = skipThreshold(len(h.Users()))
+	return votes, needed, votes >= needed
+}
+
+// ResetVotes clears skip votes (called after a skip).
+func (h *Hub) ResetVotes() {
+	h.votesMu.Lock()
+	h.voteKey = ""
+	h.voters = make(map[string]bool)
+	h.votesMu.Unlock()
+}
+
+// SetSleepAt records when playback should auto-pause (epoch ms; 0 = off) for broadcast.
+func (h *Hub) SetSleepAt(ms int64) { h.sleepAt.Store(ms) }
+
+func (h *Hub) votesFor(videoID string) int {
+	h.votesMu.Lock()
+	defer h.votesMu.Unlock()
+	if h.voteKey != videoID {
+		return 0
+	}
+	return len(h.voters)
+}
+
+// skipThreshold is a simple majority of connected users (at least 1).
+func skipThreshold(users int) int {
+	if users < 1 {
+		return 1
+	}
+	return users/2 + 1
 }
 
 // Run owns the hub state until ctx is cancelled. Broadcasts happen on queue changes AND on
@@ -94,7 +146,17 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request, user ConnectedUser
 }
 
 func (h *Hub) broadcast(snap domain.Snapshot) {
-	payload, err := json.Marshal(LiveState{Snapshot: snap, Users: h.Users()})
+	currentVideoID := ""
+	if c := snap.Current(); c != nil {
+		currentVideoID = c.VideoID
+	}
+	payload, err := json.Marshal(LiveState{
+		Snapshot:   snap,
+		Users:      h.Users(),
+		SkipVotes:  h.votesFor(currentVideoID),
+		SkipNeeded: skipThreshold(len(h.Users())),
+		SleepAtMs:  h.sleepAt.Load(),
+	})
 	if err != nil {
 		return
 	}

@@ -56,9 +56,13 @@ type ConnectedUser struct {
 	Role     domain.Role `json:"role"`
 }
 
-// LiveState is the websocket payload: the jukebox snapshot plus live presence. Presence is a
-// transport concern, so it is merged in here at broadcast time rather than stored in the queue.
+// LiveState is the websocket payload: the jukebox snapshot plus live, presence-derived state
+// (who's connected, skip votes, sleep timer). These are transport concerns merged in at broadcast
+// time rather than stored in the queue.
 type LiveState struct {
-	Snapshot domain.Snapshot `json:"snapshot"`
-	Users    []ConnectedUser `json:"users"`
+	Snapshot   domain.Snapshot `json:"snapshot"`
+	Users      []ConnectedUser `json:"users"`
+	SkipVotes  int             `json:"skipVotes"`  // votes to skip the current track
+	SkipNeeded int             `json:"skipNeeded"` // votes required (majority of connected users)
+	SleepAtMs  int64           `json:"sleepAtMs"`  // epoch ms when playback auto-pauses (0 = off)
 }

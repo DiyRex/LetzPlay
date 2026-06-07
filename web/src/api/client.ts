@@ -1,9 +1,11 @@
 import type {
   AddResult,
   JukeboxSnapshot,
+  Lyrics,
   Playlist,
   PlaylistSummary,
   RepeatMode,
+  SearchResult,
   Session,
 } from "./types"
 
@@ -79,6 +81,21 @@ export const api = {
   setRepeat: (repeat: RepeatMode) =>
     request<void>("/api/player/repeat", { method: "POST", body: JSON.stringify({ repeat }) }),
   clearQueue: () => request<void>("/api/player/clear", { method: "POST" }),
+  voteSkip: () => request<void>("/api/player/voteskip", { method: "POST" }),
+  setSleep: (minutes: number) =>
+    request<void>("/api/player/sleep", { method: "POST", body: JSON.stringify({ minutes }) }),
+  setAutoplay: (autoplay: boolean) =>
+    request<void>("/api/player/autoplay", { method: "POST", body: JSON.stringify({ autoplay }) }),
+
+  // Search & lyrics
+  search: (q: string) => request<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  lyrics: (videoId: string) => request<Lyrics>(`/api/lyrics?videoId=${encodeURIComponent(videoId)}`),
+
+  // Admin
+  setLock: (locked: boolean) =>
+    request<void>("/api/admin/lock", { method: "POST", body: JSON.stringify({ locked }) }),
+  setPasswords: (admin: string, guest: string) =>
+    request<void>("/api/admin/password", { method: "POST", body: JSON.stringify({ admin, guest }) }),
 
   // Playlists
   listPlaylists: () => request<PlaylistSummary[]>("/api/playlists"),

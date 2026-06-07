@@ -42,6 +42,11 @@ anything in `web/`.**
 - ⏯ Full transport: **previous / play-pause / next**, an interactive **seek bar**, **volume**, **shuffle**, and **repeat** (off / all / one) — all live across every remote.
 - 💾 **Playlists**: create, add songs, save the current queue as a playlist, and load a playlist back into the queue (persisted on desktop).
 - 📑 Tabbed remote: **Now Playing · Songs · Playlists**.
+- 🔎 **In-app search** — type to search YouTube (keyless via yt-dlp on desktop), tap a result to queue.
+- 🎤 **Synced lyrics** (lrclib) that scroll with the song.
+- 🗳 **Vote-to-skip**, **sleep timer**, and **radio mode** (auto-adds related tracks when the queue empties).
+- 🛡 **Admin panel**: lock the queue, set per-guest request limits, change passwords from the web.
+- 📲 **Installable PWA** remote (add to home screen) and a queue that **persists across restarts** (desktop).
 - 👮 **Login with roles.** A shared *party password* (guest) and an *admin password* (full control).
   Guests manage only songs they added; admins control playback and any song.
 - 🧑‍🤝‍🧑 **Live presence.** See who's connected, and who added each track.

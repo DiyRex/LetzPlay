@@ -12,10 +12,12 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DiyRex/LetzPlay/desktop/internal/auth"
 	"github.com/DiyRex/LetzPlay/desktop/internal/domain"
+	"github.com/DiyRex/LetzPlay/desktop/internal/lyrics"
 	"github.com/DiyRex/LetzPlay/desktop/internal/playlist"
 	"github.com/DiyRex/LetzPlay/desktop/internal/youtube"
 )
@@ -27,10 +29,15 @@ type Server struct {
 	player   domain.Player
 	auth     *auth.Service
 	sessions *auth.SessionManager
-	meta      *youtube.MetadataClient
-	hub       *Hub
-	assets    fs.FS
-	playlists *playlist.Store
+	meta       *youtube.MetadataClient
+	hub        *Hub
+	assets     fs.FS
+	playlists  *playlist.Store
+	lyrics     *lyrics.Client
+	maxPerUser int // 0 = unlimited; per-user cap on not-yet-played queued songs
+
+	sleepMu    sync.Mutex
+	sleepTimer *time.Timer
 }
 
 // NewServer builds the server. `assets` is the SPA filesystem (the embedded web/dist).
@@ -42,16 +49,19 @@ func NewServer(
 	hub *Hub,
 	assets fs.FS,
 	playlists *playlist.Store,
+	maxPerUser int,
 ) *Server {
 	return &Server{
-		queue:     queue,
-		player:    player,
-		auth:      authService,
-		sessions:  sessions,
-		meta:      youtube.NewMetadataClient(),
-		hub:       hub,
-		assets:    assets,
-		playlists: playlists,
+		queue:      queue,
+		player:     player,
+		auth:       authService,
+		sessions:   sessions,
+		meta:       youtube.NewMetadataClient(),
+		hub:        hub,
+		assets:     assets,
+		playlists:  playlists,
+		lyrics:     lyrics.NewClient(),
+		maxPerUser: maxPerUser,
 	}
 }
 
@@ -81,6 +91,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/player/shuffle", s.protected(s.handleShuffle))
 	mux.HandleFunc("POST /api/player/repeat", s.protected(s.handleRepeat))
 	mux.HandleFunc("POST /api/player/clear", s.protected(s.handleClear))
+	mux.HandleFunc("POST /api/player/voteskip", s.protected(s.handleVoteSkip))
+	mux.HandleFunc("POST /api/player/sleep", s.protected(s.handleSleep))
+	mux.HandleFunc("POST /api/player/autoplay", s.protected(s.handleAutoplay))
+
+	mux.HandleFunc("GET /api/search", s.protected(s.handleSearch))
+	mux.HandleFunc("GET /api/lyrics", s.protected(s.handleLyrics))
+
+	mux.HandleFunc("POST /api/admin/lock", s.adminOnly(s.handleLock))
+	mux.HandleFunc("POST /api/admin/password", s.adminOnly(s.handlePassword))
 
 	mux.HandleFunc("GET /api/playlists", s.protected(s.handleListPlaylists))
 	mux.HandleFunc("POST /api/playlists", s.protected(s.handleCreatePlaylist))
@@ -147,6 +166,19 @@ func (s *Server) handleAddSong(w http.ResponseWriter, r *http.Request, session a
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "Malformed request")
 		return
+	}
+
+	// Admin queue lock and per-user request limits apply to guests only.
+	if !session.Role.IsAdmin() {
+		if s.queue.Snapshot().Locked {
+			writeErr(w, http.StatusForbidden, "The host has locked the queue")
+			return
+		}
+		if s.maxPerUser > 0 && s.queue.CountByUser(session.Username) >= s.maxPerUser {
+			writeErr(w, http.StatusTooManyRequests,
+				fmt.Sprintf("You've reached your limit of %d queued songs", s.maxPerUser))
+			return
+		}
 	}
 
 	// Playlist link → expand into many songs (desktop has yt-dlp). A plain video → one song.

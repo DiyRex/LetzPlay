@@ -29,6 +29,27 @@ export interface JukeboxSnapshot {
   volume: number
   shuffle: boolean
   repeat: RepeatMode
+  locked: boolean
+  autoplay: boolean
+}
+
+/** A YouTube search hit (desktop server, via yt-dlp). */
+export interface SearchResult {
+  videoId: string
+  title: string
+  channel: string
+  thumbnailUrl: string
+}
+
+export interface LyricsLine {
+  timeMs: number
+  text: string
+}
+
+export interface Lyrics {
+  found: boolean
+  synced: LyricsLine[]
+  plain: string
 }
 
 /** A song stored in a saved playlist (lighter than a queue Song). */

@@ -61,6 +61,8 @@ type Snapshot struct {
 	Volume          int            `json:"volume"`
 	Shuffle         bool           `json:"shuffle"`
 	Repeat          RepeatMode     `json:"repeat"`
+	Locked          bool           `json:"locked"`   // admin queue lock: only admins may add
+	Autoplay        bool           `json:"autoplay"` // radio: auto-add a related track when empty
 }
 
 // Current returns the playing track, or nil when CurrentIndex is out of range.

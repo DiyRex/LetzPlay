@@ -55,6 +55,27 @@ func ExpandPlaylist(ctx context.Context, url string, limit int) ([]PlaylistEntry
 	return entries, nil
 }
 
+// RadioMix returns YouTube's auto-generated "mix" (radio) for a seed video — related tracks used
+// by autoplay when the queue runs dry. Excludes the seed itself. Desktop-only (needs yt-dlp).
+func RadioMix(ctx context.Context, seedVideoID string, limit int) ([]PlaylistEntry, error) {
+	mixURL := "https://www.youtube.com/watch?v=" + seedVideoID + "&list=RD" + seedVideoID
+	entries, err := ExpandPlaylist(ctx, mixURL, limit+1)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PlaylistEntry, 0, len(entries))
+	for _, e := range entries {
+		if e.VideoID == seedVideoID {
+			continue
+		}
+		out = append(out, e)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
 func itoa(n int) string {
 	if n <= 0 {
 		return "0"
