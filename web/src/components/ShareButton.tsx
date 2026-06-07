@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { createPortal } from "react-dom"
 import QRCode from "qrcode"
 import { Check, Copy, Share2, X } from "lucide-react"
 import { toast } from "sonner"
@@ -74,44 +75,46 @@ export function ShareButton() {
         <Share2 className="size-4" />
       </Button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4"
-          onClick={() => setOpen(false)}
-        >
+      {open &&
+        createPortal(
           <div
-            className="my-auto flex max-h-[90dvh] w-full max-w-xs flex-col items-center gap-4 overflow-y-auto rounded-xl border bg-card p-5"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 p-4"
+            onClick={() => setOpen(false)}
           >
-            <div className="flex w-full items-center justify-between">
-              <h2 className="text-sm font-semibold">Invite to the jukebox</h2>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpen(false)} aria-label="Close">
-                <X className="size-4" />
-              </Button>
-            </div>
-            {qr && (
-              <img
-                src={qr}
-                alt="QR code to join"
-                className="h-auto w-full max-w-[15rem] shrink-0 rounded-lg bg-white p-2"
-              />
-            )}
-            <p className="w-full break-all text-center text-xs text-muted-foreground">{url}</p>
-            <div className="flex w-full gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={copy}>
-                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                {copied ? "Copied" : "Copy link"}
-              </Button>
-              {typeof navigator !== "undefined" && "share" in navigator && (
-                <Button size="sm" className="flex-1" onClick={nativeShare}>
-                  <Share2 className="size-4" />
-                  Share
+            <div
+              className="my-auto flex max-h-[90dvh] w-full max-w-xs flex-col items-center gap-4 overflow-y-auto rounded-xl border bg-card p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex w-full items-center justify-between">
+                <h2 className="text-sm font-semibold">Invite to the jukebox</h2>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpen(false)} aria-label="Close">
+                  <X className="size-4" />
                 </Button>
+              </div>
+              {qr && (
+                <img
+                  src={qr}
+                  alt="QR code to join"
+                  className="h-auto w-full max-w-[15rem] shrink-0 rounded-lg bg-white p-2"
+                />
               )}
+              <p className="w-full break-all text-center text-xs text-muted-foreground">{url}</p>
+              <div className="flex w-full gap-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={copy}>
+                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                  {copied ? "Copied" : "Copy link"}
+                </Button>
+                {typeof navigator !== "undefined" && "share" in navigator && (
+                  <Button size="sm" className="flex-1" onClick={nativeShare}>
+                    <Share2 className="size-4" />
+                    Share
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   )
 }
