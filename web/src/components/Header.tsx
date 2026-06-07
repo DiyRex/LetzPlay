@@ -1,6 +1,8 @@
-import { LogOut, Music4 } from "lucide-react"
+import { LogOut, Music4, Palette } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ShareButton } from "@/components/ShareButton"
+import { useAccent } from "@/hooks/useAccent"
 import type { Session } from "@/api/types"
 
 interface HeaderProps {
@@ -9,6 +11,7 @@ interface HeaderProps {
 }
 
 export function Header({ session, onLogout }: HeaderProps) {
+  const { cycle } = useAccent()
   return (
     <header className="flex items-center justify-between gap-3 py-2">
       <div className="flex items-center gap-2.5">
@@ -20,10 +23,14 @@ export function Header({ session, onLogout }: HeaderProps) {
           <p className="text-xs text-muted-foreground">{session.username}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <Badge variant={session.role === "ADMIN" ? "default" : "secondary"}>
+      <div className="flex items-center gap-1">
+        <Badge variant={session.role === "ADMIN" ? "default" : "secondary"} className="mr-1">
           {session.role === "ADMIN" ? "Admin" : "Guest"}
         </Badge>
+        <ShareButton />
+        <Button variant="ghost" size="icon" onClick={cycle} aria-label="Change accent color">
+          <Palette className="size-4" />
+        </Button>
         <Button variant="ghost" size="icon" onClick={onLogout} aria-label="Log out">
           <LogOut className="size-4" />
         </Button>

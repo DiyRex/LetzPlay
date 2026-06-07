@@ -24,7 +24,10 @@ type Queue struct {
 // NewQueue returns an empty, idle queue.
 func NewQueue() *Queue {
 	return &Queue{
-		snap:        Snapshot{Tracks: []Song{}, CurrentIndex: -1, Status: StatusIdle, Volume: 100, Repeat: RepeatOff},
+		snap: Snapshot{
+			Tracks: []Song{}, CurrentIndex: -1, Status: StatusIdle, Volume: 100,
+			Repeat: RepeatOff, Eq: "flat", Speed: 1.0,
+		},
 		subscribers: make(map[int]chan Snapshot),
 	}
 }
@@ -61,15 +64,46 @@ func (q *Queue) Subscribe() (<-chan Snapshot, func()) {
 // the cursor and starts; otherwise it just joins the list and plays in turn.
 func (q *Queue) Add(s Song) {
 	q.mutate(func(cur Snapshot) Snapshot {
-		cur.Tracks = append(append([]Song{}, cur.Tracks...), s)
+		tracks := append([]Song{}, cur.Tracks...)
+		// Nothing playing: append and start it.
 		if cur.Status == StatusIdle || cur.CurrentIndex < 0 {
+			cur.Tracks = append(tracks, s)
 			cur.CurrentIndex = len(cur.Tracks) - 1
 			cur.Status = StatusBuffering
 			cur.PositionSeconds = 0
 			cur.DurationSeconds = 0
+			return cur
 		}
+		// Fair mode interleaves by requester so nobody hogs the next slots; otherwise append.
+		if cur.FairQueue {
+			at := fairInsertIndex(tracks, cur.CurrentIndex, s.AddedBy)
+			tracks = append(tracks[:at], append([]Song{s}, tracks[at:]...)...)
+		} else {
+			tracks = append(tracks, s)
+		}
+		cur.Tracks = tracks
 		return cur
 	})
+}
+
+// fairInsertIndex returns where to insert a new song by `user` so upcoming songs round-robin
+// across requesters: the user's next song is placed after everyone else's song of the same round.
+func fairInsertIndex(tracks []Song, currentIndex int, user string) int {
+	myCount := 0
+	for i := currentIndex + 1; i < len(tracks); i++ {
+		if tracks[i].AddedBy == user {
+			myCount++
+		}
+	}
+	counts := map[string]int{}
+	for i := currentIndex + 1; i < len(tracks); i++ {
+		round := counts[tracks[i].AddedBy]
+		counts[tracks[i].AddedBy]++
+		if round > myCount {
+			return i
+		}
+	}
+	return len(tracks)
 }
 
 // Remove deletes a song from the playlist (the only way a song leaves). Returns false if not found.
@@ -183,6 +217,32 @@ func (q *Queue) SetLocked(locked bool) {
 // SetAutoplay toggles radio mode (auto-add a related track when the queue runs out).
 func (q *Queue) SetAutoplay(on bool) {
 	q.mutate(func(cur Snapshot) Snapshot { cur.Autoplay = on; return cur })
+}
+
+// SetNormalize toggles loudness normalization (UI state; the player applies the filter).
+func (q *Queue) SetNormalize(on bool) {
+	q.mutate(func(cur Snapshot) Snapshot { cur.Normalize = on; return cur })
+}
+
+// SetEqualizer sets the equalizer preset name (UI state).
+func (q *Queue) SetEqualizer(preset string) {
+	q.mutate(func(cur Snapshot) Snapshot { cur.Eq = preset; return cur })
+}
+
+// SetSpeed sets the playback-speed UI state (clamped 0.25–3x).
+func (q *Queue) SetSpeed(speed float64) {
+	if speed < 0.25 {
+		speed = 0.25
+	}
+	if speed > 3 {
+		speed = 3
+	}
+	q.mutate(func(cur Snapshot) Snapshot { cur.Speed = speed; return cur })
+}
+
+// SetFairQueue toggles round-robin interleaving of additions by requester.
+func (q *Queue) SetFairQueue(on bool) {
+	q.mutate(func(cur Snapshot) Snapshot { cur.FairQueue = on; return cur })
 }
 
 // CountByUser returns how many not-yet-played tracks a user has queued (for request limits).

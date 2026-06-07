@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DiyRex/LetzPlay/desktop/internal/auth"
+	"github.com/DiyRex/LetzPlay/desktop/internal/domain"
 	"github.com/DiyRex/LetzPlay/desktop/internal/youtube"
 )
 
@@ -129,6 +130,110 @@ func (s *Server) handleAutoplay(w http.ResponseWriter, r *http.Request, _ auth.S
 		return
 	}
 	s.queue.SetAutoplay(req.Autoplay)
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleRadioFromSong seeds YouTube's "mix" from a chosen song and appends related tracks — an
+// on-demand version of autoplay radio.
+func (s *Server) handleRadioFromSong(w http.ResponseWriter, r *http.Request, session auth.Session) {
+	id := r.PathValue("id")
+	var seed string
+	for _, t := range s.queue.Snapshot().Tracks {
+		if t.ID == id {
+			seed = t.VideoID
+			break
+		}
+	}
+	if seed == "" {
+		writeErr(w, http.StatusNotFound, "Song not in the list")
+		return
+	}
+	mix, err := youtube.RadioMix(r.Context(), seed, 8)
+	if err != nil || len(mix) == 0 {
+		writeErr(w, http.StatusBadGateway, "Couldn't build a radio mix for that song")
+		return
+	}
+	existing := map[string]bool{}
+	for _, t := range s.queue.Snapshot().Tracks {
+		existing[t.VideoID] = true
+	}
+	added := 0
+	for _, e := range mix {
+		if existing[e.VideoID] {
+			continue
+		}
+		s.queue.Add(s.makeSong(e.VideoID, e.Title, "https://i.ytimg.com/vi/"+e.VideoID+"/hqdefault.jpg", session.Username))
+		added++
+	}
+	writeJSON(w, http.StatusOK, addResult{Added: added, Song: domain.Song{}})
+}
+
+// --- audio: normalize / equalizer / speed / fair queue ---
+
+// audioFilter builds an mpv/ffmpeg audio-filter chain from the EQ preset + normalization toggle.
+func audioFilter(eq string, normalize bool) string {
+	parts := make([]string, 0, 2)
+	switch eq {
+	case "bass":
+		parts = append(parts, "bass=g=10")
+	case "treble":
+		parts = append(parts, "treble=g=8")
+	case "vocal":
+		parts = append(parts, "equalizer=f=2500:t=q:w=1.5:g=5")
+	case "loud":
+		parts = append(parts, "bass=g=6", "treble=g=4")
+	}
+	if normalize {
+		parts = append(parts, "dynaudnorm=g=15") // smooth dynamic loudness normalization
+	}
+	return strings.Join(parts, ",")
+}
+
+func (s *Server) applyAudio() {
+	snap := s.queue.Snapshot()
+	s.player.SetAudioFilters(audioFilter(snap.Eq, snap.Normalize))
+}
+
+func (s *Server) handleNormalize(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	var req normalizeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "Malformed request")
+		return
+	}
+	s.queue.SetNormalize(req.Normalize)
+	s.applyAudio()
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleEq(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	var req eqRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "Malformed request")
+		return
+	}
+	s.queue.SetEqualizer(req.Eq)
+	s.applyAudio()
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleSpeed(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	var req speedRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "Malformed request")
+		return
+	}
+	s.queue.SetSpeed(req.Speed)
+	s.player.SetSpeed(s.queue.Snapshot().Speed)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleFairQueue(w http.ResponseWriter, r *http.Request, _ auth.Session) {
+	var req fairQueueRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "Malformed request")
+		return
+	}
+	s.queue.SetFairQueue(req.FairQueue)
 	w.WriteHeader(http.StatusOK)
 }
 

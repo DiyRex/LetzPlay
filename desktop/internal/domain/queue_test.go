@@ -115,6 +115,19 @@ func TestReorderKeepsCursorOnSameSong(t *testing.T) {
 	}
 }
 
+func TestFairQueueInterleaves(t *testing.T) {
+	q := NewQueue()
+	q.SetFairQueue(true)
+	q.Add(song("a1", "alice")) // now playing
+	q.Add(song("a2", "alice")) // upcoming: a2
+	q.Add(song("a3", "alice")) // upcoming: a2,a3
+	q.Add(song("b1", "bob"))   // bob's 1st jumps ahead of alice's 3rd
+	// Upcoming should interleave: a2, b1, a3 (bob doesn't wait behind alice's backlog).
+	if got := ids(q.Snapshot().Tracks); got != "a1,a2,b1,a3" {
+		t.Fatalf("fair interleave want a1,a2,b1,a3 got %s", got)
+	}
+}
+
 func TestOwnerOf(t *testing.T) {
 	q := NewQueue()
 	q.Add(song("a", "alice"))

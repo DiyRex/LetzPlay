@@ -142,6 +142,13 @@ func (m *Mpv) Pause()                { m.command("set_property", "pause", true) 
 func (m *Mpv) Seek(seconds float64)  { m.command("seek", seconds, "absolute") }
 func (m *Mpv) SetVolume(percent int) { m.command("set_property", "volume", clampVolume(percent)) }
 
+// SetSpeed sets playback speed (1.0 = normal).
+func (m *Mpv) SetSpeed(speed float64) { m.command("set_property", "speed", speed) }
+
+// SetAudioFilters sets mpv's audio filter chain (ffmpeg af syntax); "" clears it. Used for the
+// equalizer presets and loudness normalization.
+func (m *Mpv) SetAudioFilters(filter string) { m.command("set_property", "af", filter) }
+
 // SetLoop loops the current file forever (RepeatOne) or not. mpv emits no end-file while looping,
 // so the queue never advances — exactly the repeat-one behaviour.
 func (m *Mpv) SetLoop(loop bool) {

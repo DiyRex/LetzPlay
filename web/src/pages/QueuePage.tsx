@@ -3,6 +3,7 @@ import { Save, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { AddSong } from "@/components/AddSong"
 import { QueueList } from "@/components/QueueList"
+import { StatsCard } from "@/components/StatsCard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { api } from "@/api/client"
@@ -41,9 +42,11 @@ export function QueuePage({ snapshot, session }: QueuePageProps) {
     }
   }
 
+  const existingVideoIds = new Set(snapshot.tracks.map((t) => t.videoId))
+
   return (
     <div className="flex flex-col gap-4">
-      <AddSong />
+      <AddSong existingVideoIds={existingVideoIds} />
 
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" className="flex-1" onClick={() => setSaving((v) => !v)}>
@@ -78,6 +81,8 @@ export function QueuePage({ snapshot, session }: QueuePageProps) {
       )}
 
       <QueueList snapshot={snapshot} session={session} />
+
+      <StatsCard />
     </div>
   )
 }

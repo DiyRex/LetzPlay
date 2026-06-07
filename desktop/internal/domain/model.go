@@ -61,8 +61,12 @@ type Snapshot struct {
 	Volume          int            `json:"volume"`
 	Shuffle         bool           `json:"shuffle"`
 	Repeat          RepeatMode     `json:"repeat"`
-	Locked          bool           `json:"locked"`   // admin queue lock: only admins may add
-	Autoplay        bool           `json:"autoplay"` // radio: auto-add a related track when empty
+	Locked          bool           `json:"locked"`    // admin queue lock: only admins may add
+	Autoplay        bool           `json:"autoplay"`  // radio: auto-add a related track when empty
+	Normalize       bool           `json:"normalize"` // loudness normalization (even volume across songs)
+	Eq              string         `json:"eq"`        // equalizer preset name ("flat"/"bass"/...)
+	Speed           float64        `json:"speed"`     // playback speed (1.0 = normal)
+	FairQueue       bool           `json:"fairQueue"` // interleave additions round-robin by requester
 }
 
 // Current returns the playing track, or nil when CurrentIndex is out of range.
@@ -82,5 +86,7 @@ type Player interface {
 	Pause()
 	Seek(seconds float64)
 	SetVolume(percent int)
-	SetLoop(loop bool) // loop the current file (used for RepeatOne)
+	SetLoop(loop bool)            // loop the current file (used for RepeatOne)
+	SetSpeed(speed float64)       // playback speed (1.0 = normal)
+	SetAudioFilters(filter string) // ffmpeg/mpv audio filter chain ("" = none); EQ + normalization
 }

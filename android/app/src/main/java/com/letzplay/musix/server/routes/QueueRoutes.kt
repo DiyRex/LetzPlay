@@ -107,6 +107,11 @@ fun Route.queueRoutes(
         call.respond(HttpStatusCode.OK)
     }
 
+    // Radio-from-song needs yt-dlp (desktop-only); report gracefully on Android.
+    post("/{id}/radio") {
+        call.respond(HttpStatusCode.BadGateway, ErrorResponse("Radio isn't available on this server"))
+    }
+
     // Tap-to-play: jump the cursor straight to a song. Any logged-in user may do this.
     post("/{id}/play") {
         val id = call.parameters["id"] ?: return@post call.respond(HttpStatusCode.BadRequest)

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Lock, LockOpen, Shield } from "lucide-react"
+import { Lock, LockOpen, Shield, Users } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -54,6 +54,16 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
         >
           {snapshot.locked ? <Lock className="size-4" /> : <LockOpen className="size-4" />}
           {snapshot.locked ? "Queue locked (only admins can add)" : "Lock queue"}
+        </Button>
+
+        <Button
+          variant={snapshot.fairQueue ? "default" : "outline"}
+          size="sm"
+          onClick={guard(() => api.setFairQueue(!snapshot.fairQueue))}
+          aria-pressed={snapshot.fairQueue}
+        >
+          <Users className="size-4" />
+          {snapshot.fairQueue ? "Fair queue on (round-robin)" : "Fair queue off"}
         </Button>
 
         {open && (

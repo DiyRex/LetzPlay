@@ -89,7 +89,8 @@ func main() {
 	startQueuePersistence(ctx, queue)
 	startRadio(ctx, queue)
 
-	server := api.NewServer(queue, mpv, authService, sessions, hub, assets, playlists, *maxPerUser)
+	stats := api.NewStats(ctx, queue)
+	server := api.NewServer(queue, mpv, authService, sessions, hub, assets, playlists, stats, *maxPerUser)
 	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", *port), Handler: server.Handler()}
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {

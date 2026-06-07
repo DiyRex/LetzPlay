@@ -13,6 +13,10 @@ const EMPTY_SNAPSHOT: JukeboxSnapshot = {
   repeat: "OFF",
   locked: false,
   autoplay: false,
+  normalize: false,
+  eq: "flat",
+  speed: 1,
+  fairQueue: false,
 }
 
 export interface LiveState {

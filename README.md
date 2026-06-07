@@ -47,6 +47,9 @@ anything in `web/`.**
 - 🗳 **Vote-to-skip**, **sleep timer**, and **radio mode** (auto-adds related tracks when the queue empties).
 - 🛡 **Admin panel**: lock the queue, set per-guest request limits, change passwords from the web.
 - 📲 **Installable PWA** remote (add to home screen) and a queue that **persists across restarts** (desktop).
+- 🎚 **Sound shaping** (desktop): loudness normalization, equalizer presets, playback speed; auto-skips unplayable videos.
+- 🔁 **Fair queue** (round-robin by requester), **vote-to-skip**, **start radio from any song**, and **party stats** (most-played / top requesters).
+- 🔒 **Lock-screen controls** (Media Session), **duplicate detection**, **QR/share** invite, and an **accent theme** switcher.
 - 👮 **Login with roles.** A shared *party password* (guest) and an *admin password* (full control).
   Guests manage only songs they added; admins control playback and any song.
 - 🧑‍🤝‍🧑 **Live presence.** See who's connected, and who added each track.

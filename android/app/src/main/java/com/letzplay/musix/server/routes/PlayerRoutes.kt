@@ -4,11 +4,15 @@ import com.letzplay.musix.domain.player.PlaybackController
 import com.letzplay.musix.domain.queue.MusicQueue
 import com.letzplay.musix.server.auth.UserSession
 import com.letzplay.musix.server.dto.AutoplayRequest
+import com.letzplay.musix.server.dto.EqRequest
 import com.letzplay.musix.server.dto.ErrorResponse
+import com.letzplay.musix.server.dto.FairQueueRequest
+import com.letzplay.musix.server.dto.NormalizeRequest
 import com.letzplay.musix.server.dto.RepeatRequest
 import com.letzplay.musix.server.dto.SeekRequest
 import com.letzplay.musix.server.dto.ShuffleRequest
 import com.letzplay.musix.server.dto.SleepRequest
+import com.letzplay.musix.server.dto.SpeedRequest
 import com.letzplay.musix.server.dto.VolumeRequest
 import com.letzplay.musix.server.ws.QueueBroadcaster
 import io.ktor.http.HttpStatusCode
@@ -101,6 +105,28 @@ fun Route.playerRoutes(
 
     post("/autoplay") {
         queue.setAutoplay(call.receive<AutoplayRequest>().autoplay)
+        call.respond(HttpStatusCode.OK)
+    }
+
+    // Audio-shaping toggles. On the IFrame player these only affect the shared UI state (the player
+    // can't apply EQ/normalization/speed); the desktop server applies them for real.
+    post("/normalize") {
+        queue.setNormalize(call.receive<NormalizeRequest>().normalize)
+        call.respond(HttpStatusCode.OK)
+    }
+
+    post("/eq") {
+        queue.setEqualizer(call.receive<EqRequest>().eq)
+        call.respond(HttpStatusCode.OK)
+    }
+
+    post("/speed") {
+        queue.setSpeed(call.receive<SpeedRequest>().speed)
+        call.respond(HttpStatusCode.OK)
+    }
+
+    post("/fairqueue") {
+        queue.setFairQueue(call.receive<FairQueueRequest>().fairQueue)
         call.respond(HttpStatusCode.OK)
     }
 }

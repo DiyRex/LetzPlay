@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, ListMusic, Music2, Play, Volume2, X } from "lucide-react"
+import { ChevronDown, ChevronUp, ListMusic, Music2, Play, Radio, Volume2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -87,6 +87,19 @@ export function QueueList({ snapshot, session }: QueueListProps) {
                   <span className="block truncate text-xs text-muted-foreground">{song.addedBy}</span>
                 </span>
               </button>
+
+              <div className="flex shrink-0 items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-primary"
+                  onClick={act(() => api.radioFromSong(song.id), "Could not start radio")}
+                  aria-label="Start radio from this song"
+                  title="Start radio from this song"
+                >
+                  <Radio className="size-4" />
+                </Button>
+              </div>
 
               {canManage(song.addedBy) && (
                 <div className="flex shrink-0 items-center">

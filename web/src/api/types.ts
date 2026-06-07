@@ -31,6 +31,20 @@ export interface JukeboxSnapshot {
   repeat: RepeatMode
   locked: boolean
   autoplay: boolean
+  normalize: boolean
+  eq: string
+  speed: number
+  fairQueue: boolean
+}
+
+export interface StatCount {
+  label: string
+  count: number
+}
+
+export interface Stats {
+  mostPlayed: StatCount[]
+  topRequesters: StatCount[]
 }
 
 /** A YouTube search hit (desktop server, via yt-dlp). */

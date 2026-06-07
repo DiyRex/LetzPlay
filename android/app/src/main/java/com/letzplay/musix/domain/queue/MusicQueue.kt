@@ -26,20 +26,38 @@ class MusicQueue {
     private val _snapshot = MutableStateFlow(JukeboxSnapshot())
     val snapshot: StateFlow<JukeboxSnapshot> = _snapshot.asStateFlow()
 
-    /** Append a song. If nothing is playing (idle), it becomes the cursor and starts. */
+    /** Append a song. If nothing is playing (idle) it starts; fair mode interleaves by requester. */
     fun add(song: Song): Unit = mutate { current ->
-        val tracks = current.tracks + song
         if (current.status == PlaybackStatus.IDLE || current.currentIndex < 0) {
-            current.copy(
+            val tracks = current.tracks + song
+            return@mutate current.copy(
                 tracks = tracks,
                 currentIndex = tracks.lastIndex,
                 status = PlaybackStatus.BUFFERING,
                 positionSeconds = 0f,
                 durationSeconds = 0f,
             )
-        } else {
-            current.copy(tracks = tracks)
         }
+        val tracks = current.tracks.toMutableList()
+        if (current.fairQueue) {
+            tracks.add(fairInsertIndex(current.tracks, current.currentIndex, song.addedBy), song)
+        } else {
+            tracks.add(song)
+        }
+        current.copy(tracks = tracks)
+    }
+
+    /** Round-robin insert index so a requester's next song follows others' of the same round. */
+    private fun fairInsertIndex(tracks: List<Song>, currentIndex: Int, user: String): Int {
+        val upcoming = (currentIndex + 1) until tracks.size
+        val myCount = upcoming.count { tracks[it].addedBy == user }
+        val counts = mutableMapOf<String, Int>()
+        for (i in upcoming) {
+            val round = counts.getOrDefault(tracks[i].addedBy, 0)
+            counts[tracks[i].addedBy] = round + 1
+            if (round > myCount) return i
+        }
+        return tracks.size
     }
 
     /** Remove a song (the only way one leaves the list). Returns false if not found. */
@@ -119,6 +137,14 @@ class MusicQueue {
     fun setShuffle(on: Boolean): Unit = mutate { it.copy(shuffle = on) }
 
     fun setRepeat(mode: RepeatMode): Unit = mutate { it.copy(repeat = mode) }
+
+    fun setNormalize(on: Boolean): Unit = mutate { it.copy(normalize = on) }
+
+    fun setEqualizer(preset: String): Unit = mutate { it.copy(eq = preset) }
+
+    fun setSpeed(speed: Float): Unit = mutate { it.copy(speed = speed.coerceIn(0.25f, 3f)) }
+
+    fun setFairQueue(on: Boolean): Unit = mutate { it.copy(fairQueue = on) }
 
     fun setLocked(locked: Boolean): Unit = mutate { it.copy(locked = locked) }
 

@@ -34,6 +34,22 @@ type repeatRequest struct {
 	Repeat domain.RepeatMode `json:"repeat"`
 }
 
+type normalizeRequest struct {
+	Normalize bool `json:"normalize"`
+}
+
+type eqRequest struct {
+	Eq string `json:"eq"`
+}
+
+type speedRequest struct {
+	Speed float64 `json:"speed"`
+}
+
+type fairQueueRequest struct {
+	FairQueue bool `json:"fairQueue"`
+}
+
 type sessionResponse struct {
 	Username string      `json:"username"`
 	Role     domain.Role `json:"role"`

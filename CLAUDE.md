@@ -46,6 +46,9 @@ GET    /api/search?q=                                -> [SearchResult]  (yt-dlp;
 GET    /api/lyrics?videoId=                          -> {found,synced[],plain}  (lrclib, keyless)
 POST   /api/admin/lock     {locked}                  (admin; guests can't add while locked)
 POST   /api/admin/password {admin?,guest?}           (admin; runtime, in-memory)
+POST   /api/player/normalize|eq|speed|fairqueue      (sound shaping; desktop applies, Android = state only)
+POST   /api/queue/{id}/radio                         (seed YouTube mix from a song; desktop only)
+GET    /api/stats                                    -> {mostPlayed[], topRequesters[]}  (desktop)
 GET    /api/playlists                                -> [{id,name,count}]
 POST   /api/playlists      {name}                    -> Playlist
 POST   /api/playlists/save-queue {name}              -> Playlist (snapshot of the queue)

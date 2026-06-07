@@ -34,6 +34,7 @@ type Server struct {
 	assets     fs.FS
 	playlists  *playlist.Store
 	lyrics     *lyrics.Client
+	stats      *Stats
 	maxPerUser int // 0 = unlimited; per-user cap on not-yet-played queued songs
 
 	sleepMu    sync.Mutex
@@ -49,6 +50,7 @@ func NewServer(
 	hub *Hub,
 	assets fs.FS,
 	playlists *playlist.Store,
+	stats *Stats,
 	maxPerUser int,
 ) *Server {
 	return &Server{
@@ -61,6 +63,7 @@ func NewServer(
 		assets:     assets,
 		playlists:  playlists,
 		lyrics:     lyrics.NewClient(),
+		stats:      stats,
 		maxPerUser: maxPerUser,
 	}
 }
@@ -79,6 +82,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/queue/{id}", s.protected(s.handleRemoveSong))
 	mux.HandleFunc("POST /api/queue/reorder", s.protected(s.handleReorder))
 	mux.HandleFunc("POST /api/queue/{id}/play", s.protected(s.handlePlayNow))
+	mux.HandleFunc("POST /api/queue/{id}/radio", s.protected(s.handleRadioFromSong))
 
 	// Transport + volume are available to any logged-in user (shared "party remote" model).
 	// Role still gates managing *other people's* songs (remove/reorder).
@@ -94,9 +98,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/player/voteskip", s.protected(s.handleVoteSkip))
 	mux.HandleFunc("POST /api/player/sleep", s.protected(s.handleSleep))
 	mux.HandleFunc("POST /api/player/autoplay", s.protected(s.handleAutoplay))
+	mux.HandleFunc("POST /api/player/normalize", s.protected(s.handleNormalize))
+	mux.HandleFunc("POST /api/player/eq", s.protected(s.handleEq))
+	mux.HandleFunc("POST /api/player/speed", s.protected(s.handleSpeed))
+	mux.HandleFunc("POST /api/player/fairqueue", s.protected(s.handleFairQueue))
 
 	mux.HandleFunc("GET /api/search", s.protected(s.handleSearch))
 	mux.HandleFunc("GET /api/lyrics", s.protected(s.handleLyrics))
+	mux.HandleFunc("GET /api/stats", s.protected(s.handleStats))
 
 	mux.HandleFunc("POST /api/admin/lock", s.adminOnly(s.handleLock))
 	mux.HandleFunc("POST /api/admin/password", s.adminOnly(s.handlePassword))

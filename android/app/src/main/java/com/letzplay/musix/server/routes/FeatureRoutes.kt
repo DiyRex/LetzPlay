@@ -39,6 +39,12 @@ fun Route.featureRoutes(queue: MusicQueue, lyricsClient: LyricsClient) {
         }
         call.respond(lyricsClient.get(title))
     }
+
+    // Session stats aren't tracked on Android (desktop-only) — return empty so the web shows
+    // "Nothing yet" rather than an error.
+    get("/api/stats") {
+        call.respond(com.letzplay.musix.server.dto.Stats())
+    }
 }
 
 /** `/api/admin` — admin-only: lock the queue and change passwords (persisted in AppSettings). */

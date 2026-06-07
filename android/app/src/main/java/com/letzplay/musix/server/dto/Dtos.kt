@@ -44,6 +44,24 @@ data class ShuffleRequest(val shuffle: Boolean)
 data class RepeatRequest(val repeat: com.letzplay.musix.domain.model.RepeatMode)
 
 @Serializable
+data class NormalizeRequest(val normalize: Boolean)
+
+@Serializable
+data class EqRequest(val eq: String)
+
+@Serializable
+data class SpeedRequest(val speed: Float)
+
+@Serializable
+data class FairQueueRequest(val fairQueue: Boolean)
+
+@Serializable
+data class StatCount(val label: String, val count: Int)
+
+@Serializable
+data class Stats(val mostPlayed: List<StatCount> = emptyList(), val topRequesters: List<StatCount> = emptyList())
+
+@Serializable
 data class ErrorResponse(val error: String)
 
 // --- Playlists ---

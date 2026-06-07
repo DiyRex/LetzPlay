@@ -7,6 +7,7 @@ import type {
   RepeatMode,
   SearchResult,
   Session,
+  Stats,
 } from "./types"
 
 /**
@@ -86,6 +87,16 @@ export const api = {
     request<void>("/api/player/sleep", { method: "POST", body: JSON.stringify({ minutes }) }),
   setAutoplay: (autoplay: boolean) =>
     request<void>("/api/player/autoplay", { method: "POST", body: JSON.stringify({ autoplay }) }),
+  setNormalize: (normalize: boolean) =>
+    request<void>("/api/player/normalize", { method: "POST", body: JSON.stringify({ normalize }) }),
+  setEq: (eq: string) =>
+    request<void>("/api/player/eq", { method: "POST", body: JSON.stringify({ eq }) }),
+  setSpeed: (speed: number) =>
+    request<void>("/api/player/speed", { method: "POST", body: JSON.stringify({ speed }) }),
+  setFairQueue: (fairQueue: boolean) =>
+    request<void>("/api/player/fairqueue", { method: "POST", body: JSON.stringify({ fairQueue }) }),
+  radioFromSong: (id: string) => request<void>(`/api/queue/${id}/radio`, { method: "POST" }),
+  stats: () => request<Stats>("/api/stats"),
 
   // Search & lyrics
   search: (q: string) => request<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),

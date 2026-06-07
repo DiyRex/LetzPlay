@@ -1,19 +1,26 @@
 import { useState } from "react"
-import { Loader2, Music2, Plus, Search } from "lucide-react"
+import { Check, Loader2, Music2, Plus, Search } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { api } from "@/api/client"
+import { extractVideoId } from "@/lib/youtube"
 import type { SearchResult } from "@/api/types"
 
 const LOOKS_LIKE_LINK = /youtu\.?be|youtube\.com|^https?:\/\//i
 const BARE_ID = /^[A-Za-z0-9_-]{11}$/
 
+interface AddSongProps {
+  /** Video ids already in the queue, for duplicate detection. */
+  existingVideoIds?: Set<string>
+}
+
 /**
  * One box for both: paste a YouTube link/playlist (queues it directly), or type words to search
- * (results appear below; tap one to queue it). Keeps the remote to a single, obvious input.
+ * (results appear below; tap one to queue it). Flags songs already in the queue.
  */
-export function AddSong() {
+export function AddSong({ existingVideoIds }: AddSongProps = {}) {
+  const has = (videoId: string | null) => !!videoId && !!existingVideoIds?.has(videoId)
   const [text, setText] = useState("")
   const [busy, setBusy] = useState(false)
   const [results, setResults] = useState<SearchResult[]>([])
@@ -28,6 +35,7 @@ export function AddSong() {
     setBusy(true)
     try {
       if (isLink(q)) {
+        if (has(extractVideoId(q))) toast.message("That song is already in the queue — adding again")
         const res = await api.addSong(q)
         toast.success(res.added > 1 ? `Added ${res.added} songs` : `Added "${res.song.title}"`)
         setText("")
@@ -98,7 +106,11 @@ export function AddSong() {
                   <span className="block truncate text-sm font-medium">{r.title}</span>
                   {r.channel && <span className="block truncate text-xs text-muted-foreground">{r.channel}</span>}
                 </span>
-                <Plus className="size-4 shrink-0 text-muted-foreground" />
+                {has(r.videoId) ? (
+                  <Check className="size-4 shrink-0 text-primary" />
+                ) : (
+                  <Plus className="size-4 shrink-0 text-muted-foreground" />
+                )}
               </button>
             </li>
           ))}
